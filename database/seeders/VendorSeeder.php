@@ -13,6 +13,22 @@ class VendorSeeder extends Seeder
      */
     public function run(): void
     {
+        $demoVendor = Vendor::factory()->create([
+            'name' => 'Demo Billiard',
+            'slug' => 'demo-billiard',
+            'email' => 'demo@billiard.test',
+        ]);
+
+        User::factory()->vendorAdmin($demoVendor)->create([
+            'name' => 'Demo Vendor Admin',
+            'email' => 'admin@demo.test',
+        ]);
+
+        User::factory()->staff($demoVendor)->create([
+            'name' => 'Demo Staff',
+            'email' => 'staff@demo.test',
+        ]);
+
         Vendor::factory()
             ->count(3)
             ->create()
