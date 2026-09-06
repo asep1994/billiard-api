@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Enums\PaymentGatewayStatus;
+use App\Enums\PaymentStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\DuitkuCallbackRequest;
+use App\Http\Requests\InitiatePaymentRequest;
+use App\Http\Resources\PaymentResource;
+use App\Models\Booking;
+use App\Models\Payment;
+use App\Services\DuitkuService;
+use Illuminate\Http\Response;
+use Illuminate\Support\Str;
+
+class PaymentController extends Controller
+{
+    /**
+     * Create a Duitku transaction for a booking and return the payment URL.
+     */
+    public function initiate(InitiatePaymentRequest $request, Booking $booking, DuitkuService $duitku)
+    {
+        $this->authorize('update', $booking);
+
+        if ($booking->payments()->where('status', PaymentGatewayStatus::Paid)->exists()) {
+            return response()->json(['message' => 'This booking has already been paid.'], Response::HTTP_CONFLICT);
+        }
+
+        $customer = $booking->customer;
+        $paymentAmount = (int) round((float) $booking->total_price);
+
+        $payment = Payment::create([
+            'booking_id' => $booking->id,
+            'merchant_order_id' => 'BOOK-'.$booking->id.'-'.Str::upper(Str::random(8)),
+            'payment_method' => $request->validated('payment_method'),
+            'amount' => $booking->total_price,
+            'status' => PaymentGatewayStatus::Pending,
+        ]);
+
+        $duitkuResponse = $duitku->createTransaction([
+            'paymentAmount' => $paymentAmount,
+            'paymentMethod' => $payment->payment_method,
+            'merchantOrderId' => $payment->merchant_order_id,
+            'productDetails' => "Booking #{$booking->id}",
+            'email' => $customer->email ?? 'guest@billiard.test',
+            'customerVaName' => $customer->name,
+            'phoneNumber' => $customer->phone,
+            'callbackUrl' => route('payments.callback'),
+            'returnUrl' => config('app.url'),
+            'expiryPeriod' => 60,
+        ]);
+
+        if (($duitkuResponse['statusCode'] ?? null) !== '00') {
+            $payment->update(['status' => PaymentGatewayStatus::Failed]);
+
+            return response()->json([
+                'message' => 'Failed to create Duitku transaction.',
+                'duitku_response' => $duitkuResponse,
+            ], Response::HTTP_BAD_GATEWAY);
+        }
+
+        $payment->update(['duitku_reference' => $duitkuResponse['reference'] ?? null]);
+
+        return (new PaymentResource($payment->refresh()))
+            ->additional(['payment_url' => $duitkuResponse['paymentUrl'] ?? null])
+            ->response()
+            ->setStatusCode(Response::HTTP_CREATED);
+    }
+
+    /**
+     * Handle Duitku's payment notification callback.
+     */
+    public function callback(DuitkuCallbackRequest $request, DuitkuService $duitku)
+    {
+        $data = $request->validated();
+
+        $signatureValid = $duitku->verifyCallbackSignature(
+            $data['merchantOrderId'],
+            (int) $data['amount'],
+            $data['signature'],
+        );
+
+        if (! $signatureValid) {
+            return response('Invalid signature', Response::HTTP_BAD_REQUEST);
+        }
+
+        $payment = Payment::where('merchant_order_id', $data['merchantOrderId'])->first();
+
+        if (! $payment) {
+            return response('Order not found', Response::HTTP_NOT_FOUND);
+        }
+
+        if ($payment->status === PaymentGatewayStatus::Paid) {
+            return response('SUCCESS');
+        }
+
+        if ($data['resultCode'] === '00') {
+            $payment->update([
+                'status' => PaymentGatewayStatus::Paid,
+                'duitku_reference' => $data['reference'] ?? $payment->duitku_reference,
+                'payment_method' => $data['paymentCode'] ?? $payment->payment_method,
+                'paid_at' => now(),
+            ]);
+
+            $payment->booking->update(['payment_status' => PaymentStatus::Paid]);
+        } else {
+            $payment->update(['status' => PaymentGatewayStatus::Failed]);
+        }
+
+        return response('SUCCESS');
+    }
+}

@@ -31,6 +31,9 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="DUITKU_MERCHANT_CODE" value="TESTMERCHANT"/>
+        <env name="DUITKU_API_KEY" value="test-api-key"/>
+        <env name="DUITKU_SANDBOX" value="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

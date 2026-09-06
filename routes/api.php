@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BilliardTableController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VendorController;
 use App\Http\Controllers\Api\VenueController;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/payments/callback', [PaymentController::class, 'callback'])->name('payments.callback');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -22,6 +24,7 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('tables', BilliardTableController::class);
         Route::apiResource('customers', CustomerController::class);
         Route::apiResource('bookings', BookingController::class);
+        Route::post('bookings/{booking}/pay', [PaymentController::class, 'initiate']);
         Route::apiResource('users', UserController::class);
     });
 });

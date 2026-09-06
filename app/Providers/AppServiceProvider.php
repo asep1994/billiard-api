@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\DuitkuService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +12,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(DuitkuService::class, fn () => new DuitkuService(
+            merchantCode: (string) config('services.duitku.merchant_code'),
+            apiKey: (string) config('services.duitku.api_key'),
+            sandbox: (bool) config('services.duitku.sandbox'),
+        ));
     }
 
     /**
