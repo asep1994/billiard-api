@@ -36,6 +36,10 @@ class BookingController extends Controller
             ? Booking::query()
             : Booking::where('vendor_id', $request->user()->vendor_id);
 
+        if ($request->filled('venue_id')) {
+            $bookings->where('venue_id', $request->integer('venue_id'));
+        }
+
         $perPage = min($request->integer('per_page', 15), 100);
 
         return BookingResource::collection(

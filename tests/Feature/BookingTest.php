@@ -275,6 +275,32 @@ class BookingTest extends TestCase
         $this->getJson('/api/v1/bookings')->assertOk()->assertJsonCount(2, 'data');
     }
 
+    public function test_index_can_be_filtered_by_venue_id(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venueA, 'table' => $tableA, 'customer' => $customer] = $this->makeVendorContext();
+        $venueB = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $tableB = BilliardTable::factory()->create(['venue_id' => $venueB->id]);
+
+        Booking::factory()->count(2)->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venueA->id,
+            'billiard_table_id' => $tableA->id,
+            'customer_id' => $customer->id,
+        ]);
+        Booking::factory()->count(3)->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venueB->id,
+            'billiard_table_id' => $tableB->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->getJson("/api/v1/bookings?venue_id={$venueA->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
     public function test_staff_cannot_delete_a_booking(): void
     {
         ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();

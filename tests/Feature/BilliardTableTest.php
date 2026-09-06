@@ -49,6 +49,21 @@ class BilliardTableTest extends TestCase
         $this->getJson('/api/v1/tables')->assertOk()->assertJsonCount(2, 'data');
     }
 
+    public function test_index_can_be_filtered_by_venue_id(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venueA = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $venueB = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        BilliardTable::factory()->count(2)->create(['venue_id' => $venueA->id]);
+        BilliardTable::factory()->count(3)->create(['venue_id' => $venueB->id]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->getJson("/api/v1/tables?venue_id={$venueA->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
     public function test_vendor_admin_can_create_a_table_for_their_own_venue(): void
     {
         $vendor = Vendor::factory()->create();
