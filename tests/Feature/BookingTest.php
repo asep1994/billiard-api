@@ -46,6 +46,29 @@ class BookingTest extends TestCase
             ->assertJsonPath('data.payment_status', 'unpaid');
     }
 
+    public function test_a_naive_start_time_is_interpreted_in_the_application_timezone(): void
+    {
+        // Guards against a real bug: app.timezone defaulted to UTC while the
+        // business operates in Asia/Jakarta (UTC+7), so a staff member
+        // entering "14:00" got a booking stored as 14:00 UTC and displayed
+        // back as 21:00 local. Pinning the exact UTC instant here fails loudly
+        // if config('app.timezone') ever regresses to UTC.
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->postJson('/api/v1/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 14:00:00',
+            'end_time' => '2027-01-01 16:00:00',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.start_time', '2027-01-01T07:00:00.000000Z')
+            ->assertJsonPath('data.end_time', '2027-01-01T09:00:00.000000Z');
+    }
+
     public function test_overlapping_booking_on_the_same_table_is_rejected(): void
     {
         ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();
