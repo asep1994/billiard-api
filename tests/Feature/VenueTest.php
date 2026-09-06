@@ -36,6 +36,27 @@ class VenueTest extends TestCase
             ->assertJsonPath('data.vendor.id', $vendor->id);
     }
 
+    public function test_opening_and_closing_time_serialize_as_plain_hh_mm(): void
+    {
+        // Regression: the "datetime:H:i" cast format only applies when the
+        // attribute is echoed directly - JSON serialization ignores it and
+        // outputs a full UTC ISO datetime unless the Resource formats it
+        // itself, which broke the admin dashboard's <input type="time">.
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create([
+            'vendor_id' => $vendor->id,
+            'opening_time' => '09:00',
+            'closing_time' => '22:00',
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->getJson("/api/v1/venues/{$venue->id}")
+            ->assertOk()
+            ->assertJsonPath('data.opening_time', '09:00')
+            ->assertJsonPath('data.closing_time', '22:00');
+    }
+
     public function test_super_admin_sees_venues_across_all_vendors(): void
     {
         Venue::factory()->count(2)->create();
