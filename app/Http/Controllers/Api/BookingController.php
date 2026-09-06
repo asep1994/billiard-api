@@ -28,7 +28,11 @@ class BookingController extends Controller
             ? Booking::query()
             : Booking::where('vendor_id', $request->user()->vendor_id);
 
-        return BookingResource::collection($bookings->latest('start_time')->paginate());
+        $perPage = min($request->integer('per_page', 15), 100);
+
+        return BookingResource::collection(
+            $bookings->with(['venue', 'billiardTable', 'customer'])->latest('start_time')->paginate($perPage)
+        );
     }
 
     /**

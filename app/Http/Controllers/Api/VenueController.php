@@ -26,7 +26,9 @@ class VenueController extends Controller
             ? Venue::query()
             : Venue::where('vendor_id', $request->user()->vendor_id);
 
-        return VenueResource::collection($venues->paginate());
+        $perPage = min($request->integer('per_page', 15), 100);
+
+        return VenueResource::collection($venues->paginate($perPage));
     }
 
     /**

@@ -26,7 +26,9 @@ class CustomerController extends Controller
             ? Customer::query()
             : Customer::where('vendor_id', $request->user()->vendor_id);
 
-        return CustomerResource::collection($customers->paginate());
+        $perPage = min($request->integer('per_page', 15), 100);
+
+        return CustomerResource::collection($customers->paginate($perPage));
     }
 
     /**

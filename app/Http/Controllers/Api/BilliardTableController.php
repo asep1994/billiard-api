@@ -29,7 +29,9 @@ class BilliardTableController extends Controller
             ? BilliardTable::query()
             : BilliardTable::whereHas('venue', fn ($query) => $query->where('vendor_id', $request->user()->vendor_id));
 
-        return BilliardTableResource::collection($tables->paginate());
+        $perPage = min($request->integer('per_page', 15), 100);
+
+        return BilliardTableResource::collection($tables->with('venue')->paginate($perPage));
     }
 
     /**
