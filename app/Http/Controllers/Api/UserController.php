@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityAction;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\ActivityLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -49,6 +51,14 @@ class UserController extends Controller
 
         $user = User::create($data);
 
+        ActivityLog::record(
+            ActivityAction::Created,
+            'user',
+            $user->id,
+            "{$request->user()->name} menambahkan pengguna {$user->name} ({$user->role->value})",
+            $user->vendor_id,
+        );
+
         return (new UserResource($user))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
@@ -79,9 +89,20 @@ class UserController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
+        $vendorId = $user->vendor_id;
+        $name = $user->name;
+
         $user->delete();
+
+        ActivityLog::record(
+            ActivityAction::Deleted,
+            'user',
+            null,
+            "{$request->user()->name} menghapus pengguna {$name}",
+            $vendorId,
+        );
 
         return response()->noContent();
     }

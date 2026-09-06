@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityAction;
 use App\Enums\BookingStatus;
 use App\Enums\TableStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBilliardTableRequest;
 use App\Http\Requests\UpdateBilliardTableRequest;
 use App\Http\Resources\BilliardTableResource;
+use App\Models\ActivityLog;
 use App\Models\BilliardTable;
 use App\Models\Venue;
 use Illuminate\Http\Request;
@@ -39,7 +41,15 @@ class BilliardTableController extends Controller
      */
     public function store(StoreBilliardTableRequest $request)
     {
-        $table = BilliardTable::create($request->validated())->refresh();
+        $table = BilliardTable::create($request->validated())->refresh()->load('venue');
+
+        ActivityLog::record(
+            ActivityAction::Created,
+            'billiard_table',
+            $table->id,
+            "{$request->user()->name} menambahkan meja {$table->name}",
+            $table->venue->vendor_id,
+        );
 
         return (new BilliardTableResource($table))->response()->setStatusCode(Response::HTTP_CREATED);
     }
@@ -65,9 +75,21 @@ class BilliardTableController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(BilliardTable $table)
+    public function destroy(Request $request, BilliardTable $table)
     {
+        $table->load('venue');
+        $vendorId = $table->venue->vendor_id;
+        $name = $table->name;
+
         $table->delete();
+
+        ActivityLog::record(
+            ActivityAction::Deleted,
+            'billiard_table',
+            null,
+            "{$request->user()->name} menghapus meja {$name}",
+            $vendorId,
+        );
 
         return response()->noContent();
     }

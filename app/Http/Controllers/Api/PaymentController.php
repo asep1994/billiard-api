@@ -2,17 +2,23 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityAction;
 use App\Enums\PaymentGatewayStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DuitkuCallbackRequest;
 use App\Http\Requests\InitiatePaymentRequest;
 use App\Http\Resources\PaymentResource;
+use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Payment;
+use App\Models\User;
+use App\Notifications\PaymentReceived;
 use App\Services\DuitkuService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class PaymentController extends Controller
@@ -122,6 +128,28 @@ class PaymentController extends Controller
             ]);
 
             $payment->booking->update(['payment_status' => PaymentStatus::Paid]);
+
+            ActivityLog::record(
+                ActivityAction::Paid,
+                'booking',
+                $payment->booking_id,
+                'Pembayaran BK-'.str_pad((string) $payment->booking_id, 4, '0', STR_PAD_LEFT)." diterima ({$payment->payment_method})",
+                $payment->booking->vendor_id,
+            );
+
+            $recipients = User::where('vendor_id', $payment->booking->vendor_id)
+                ->where('role', UserRole::VendorAdmin)
+                ->get();
+
+            if ($payment->booking->user_id) {
+                $creator = User::find($payment->booking->user_id);
+
+                if ($creator && ! $recipients->contains('id', $creator->id)) {
+                    $recipients->push($creator);
+                }
+            }
+
+            Notification::send($recipients, new PaymentReceived($payment));
         } else {
             $payment->update(['status' => PaymentGatewayStatus::Failed]);
         }

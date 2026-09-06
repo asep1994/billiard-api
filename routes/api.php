@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BilliardTableController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\UserController;
@@ -28,6 +30,10 @@ Route::prefix('v1')->group(function (): void {
         Route::post('bookings/{booking}/pay', [PaymentController::class, 'initiate']);
         Route::get('payments', [PaymentController::class, 'index']);
         Route::apiResource('promotions', PromotionController::class);
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+        Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
         Route::apiResource('users', UserController::class);
+        Route::get('activity-logs', [ActivityLogController::class, 'index']);
     });
 });

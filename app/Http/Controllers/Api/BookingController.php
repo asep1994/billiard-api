@@ -2,16 +2,23 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityAction;
+use App\Enums\BookingStatus;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBookingRequest;
 use App\Http\Requests\UpdateBookingRequest;
 use App\Http\Resources\BookingResource;
+use App\Models\ActivityLog;
 use App\Models\BilliardTable;
 use App\Models\Booking;
 use App\Models\Promotion;
+use App\Models\User;
+use App\Notifications\NewBookingCreated;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Notification;
 
 class BookingController extends Controller
 {
@@ -69,6 +76,21 @@ class BookingController extends Controller
 
         $promotion?->increment('times_used');
 
+        ActivityLog::record(
+            ActivityAction::Created,
+            'booking',
+            $booking->id,
+            "{$request->user()->name} membuat booking BK-".str_pad((string) $booking->id, 4, '0', STR_PAD_LEFT)." untuk {$booking->customer->name}",
+            $booking->vendor_id,
+        );
+
+        $vendorAdmins = User::where('vendor_id', $booking->vendor_id)
+            ->where('role', UserRole::VendorAdmin)
+            ->where('id', '!=', $request->user()->id)
+            ->get();
+
+        Notification::send($vendorAdmins, new NewBookingCreated($booking));
+
         return (new BookingResource($booking))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
@@ -99,7 +121,20 @@ class BookingController extends Controller
             );
         }
 
+        $wasCancelled = $booking->status !== BookingStatus::Cancelled
+            && ($data['status'] ?? null) === BookingStatus::Cancelled->value;
+
         $booking->update($data);
+
+        if ($wasCancelled) {
+            ActivityLog::record(
+                ActivityAction::Cancelled,
+                'booking',
+                $booking->id,
+                "{$request->user()->name} membatalkan booking BK-".str_pad((string) $booking->id, 4, '0', STR_PAD_LEFT),
+                $booking->vendor_id,
+            );
+        }
 
         return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'user', 'promotion']));
     }

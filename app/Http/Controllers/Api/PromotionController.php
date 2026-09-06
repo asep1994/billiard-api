@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePromotionRequest;
 use App\Http\Requests\UpdatePromotionRequest;
 use App\Http\Resources\PromotionResource;
+use App\Models\ActivityLog;
 use App\Models\Promotion;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -41,6 +43,14 @@ class PromotionController extends Controller
 
         $promotion = Promotion::create($data)->refresh();
 
+        ActivityLog::record(
+            ActivityAction::Created,
+            'promotion',
+            $promotion->id,
+            "{$request->user()->name} membuat promo {$promotion->code}",
+            $promotion->vendor_id,
+        );
+
         return (new PromotionResource($promotion))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
@@ -65,9 +75,20 @@ class PromotionController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Promotion $promotion)
+    public function destroy(Request $request, Promotion $promotion)
     {
+        $vendorId = $promotion->vendor_id;
+        $code = $promotion->code;
+
         $promotion->delete();
+
+        ActivityLog::record(
+            ActivityAction::Deleted,
+            'promotion',
+            null,
+            "{$request->user()->name} menghapus promo {$code}",
+            $vendorId,
+        );
 
         return response()->noContent();
     }

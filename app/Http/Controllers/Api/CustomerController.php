@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ActivityAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
+use App\Models\ActivityLog;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -41,6 +43,14 @@ class CustomerController extends Controller
 
         $customer = Customer::create($data);
 
+        ActivityLog::record(
+            ActivityAction::Created,
+            'customer',
+            $customer->id,
+            "{$request->user()->name} menambahkan pelanggan {$customer->name}",
+            $customer->vendor_id,
+        );
+
         return (new CustomerResource($customer))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
@@ -65,9 +75,20 @@ class CustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Customer $customer)
+    public function destroy(Request $request, Customer $customer)
     {
+        $vendorId = $customer->vendor_id;
+        $name = $customer->name;
+
         $customer->delete();
+
+        ActivityLog::record(
+            ActivityAction::Deleted,
+            'customer',
+            null,
+            "{$request->user()->name} menghapus pelanggan {$name}",
+            $vendorId,
+        );
 
         return response()->noContent();
     }
