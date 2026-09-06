@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\BilliardTable;
+use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Venue;
@@ -13,6 +15,14 @@ use Tests\TestCase;
 class BilliardTableTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function availableTablesUrl(Venue $venue, string $start, string $end): string
+    {
+        return '/api/v1/venues/'.$venue->id.'/available-tables?'.http_build_query([
+            'start_time' => $start,
+            'end_time' => $end,
+        ]);
+    }
 
     public function test_index_is_scoped_to_the_authenticated_users_vendor(): void
     {
@@ -106,5 +116,110 @@ class BilliardTableTest extends TestCase
 
         $this->putJson("/api/v1/tables/{$table->id}", ['status' => 'maintenance'])
             ->assertForbidden();
+    }
+
+    public function test_available_tables_excludes_a_table_with_an_overlapping_booking(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $bookedTable = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        $freeTable = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id]);
+
+        Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $bookedTable->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->getJson($this->availableTablesUrl($venue, '2027-01-01 11:00:00', '2027-01-01 13:00:00'));
+
+        $response->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $freeTable->id);
+    }
+
+    public function test_available_tables_includes_a_table_whose_existing_booking_does_not_overlap(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $table = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id]);
+
+        Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->getJson($this->availableTablesUrl($venue, '2027-01-01 12:00:00', '2027-01-01 13:00:00'));
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_available_tables_ignores_cancelled_bookings(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $table = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id]);
+
+        Booking::factory()->cancelled()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->getJson($this->availableTablesUrl($venue, '2027-01-01 10:00:00', '2027-01-01 12:00:00'));
+
+        $response->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_available_tables_excludes_tables_under_maintenance(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        BilliardTable::factory()->maintenance()->create(['venue_id' => $venue->id]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->getJson($this->availableTablesUrl($venue, '2027-01-01 10:00:00', '2027-01-01 12:00:00'));
+
+        $response->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_available_tables_requires_a_valid_time_range(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->getJson($this->availableTablesUrl($venue, '2027-01-01 12:00:00', '2027-01-01 10:00:00'));
+
+        $response->assertUnprocessable()->assertJsonValidationErrors('end_time');
+    }
+
+    public function test_a_user_cannot_check_availability_for_a_venue_from_another_vendor(): void
+    {
+        $venue = Venue::factory()->create();
+        Sanctum::actingAs(User::factory()->vendorAdmin()->create());
+
+        $response = $this->getJson($this->availableTablesUrl($venue, '2027-01-01 10:00:00', '2027-01-01 12:00:00'));
+
+        $response->assertForbidden();
     }
 }

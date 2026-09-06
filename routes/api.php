@@ -18,6 +18,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::apiResource('vendors', VendorController::class);
         Route::apiResource('venues', VenueController::class);
+        Route::get('venues/{venue}/available-tables', [BilliardTableController::class, 'available']);
         Route::apiResource('tables', BilliardTableController::class);
         Route::apiResource('customers', CustomerController::class);
         Route::apiResource('bookings', BookingController::class);
