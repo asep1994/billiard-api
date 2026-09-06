@@ -30,7 +30,9 @@ class UserController extends Controller
             ? User::query()
             : User::where('vendor_id', $request->user()->vendor_id);
 
-        return UserResource::collection($users->paginate());
+        $perPage = min($request->integer('per_page', 15), 100);
+
+        return UserResource::collection($users->with('vendor')->latest()->paginate($perPage));
     }
 
     /**
