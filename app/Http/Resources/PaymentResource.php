@@ -17,6 +17,7 @@ class PaymentResource extends JsonResource
         return [
             'id' => $this->id,
             'booking_id' => $this->booking_id,
+            'booking' => new BookingResource($this->whenLoaded('booking')),
             'merchant_order_id' => $this->merchant_order_id,
             'duitku_reference' => $this->duitku_reference,
             'payment_method' => $this->payment_method,

@@ -11,11 +11,28 @@ use App\Http\Resources\PaymentResource;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Services\DuitkuService;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 
 class PaymentController extends Controller
 {
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request)
+    {
+        $payments = $request->user()->isSuperAdmin()
+            ? Payment::query()
+            : Payment::whereHas('booking', fn ($query) => $query->where('vendor_id', $request->user()->vendor_id));
+
+        $perPage = min($request->integer('per_page', 15), 100);
+
+        return PaymentResource::collection(
+            $payments->with(['booking.customer', 'booking.billiardTable'])->latest()->paginate($perPage)
+        );
+    }
+
     /**
      * Create a Duitku transaction for a booking and return the payment URL.
      */

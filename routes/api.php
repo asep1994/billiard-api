@@ -25,6 +25,7 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('customers', CustomerController::class);
         Route::apiResource('bookings', BookingController::class);
         Route::post('bookings/{booking}/pay', [PaymentController::class, 'initiate']);
+        Route::get('payments', [PaymentController::class, 'index']);
         Route::apiResource('users', UserController::class);
     });
 });

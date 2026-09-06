@@ -45,6 +45,27 @@ class PaymentTest extends TestCase
         return md5(self::MERCHANT_CODE.$amount.$merchantOrderId.self::API_KEY);
     }
 
+    public function test_index_is_scoped_to_the_authenticated_users_vendor(): void
+    {
+        $booking = $this->makeBooking();
+        Payment::factory()->count(2)->create(['booking_id' => $booking->id]);
+        Payment::factory()->count(3)->create();
+
+        Sanctum::actingAs(User::factory()->staff(Vendor::find($booking->vendor_id))->create());
+
+        $this->getJson('/api/v1/payments')->assertOk()->assertJsonCount(2, 'data');
+    }
+
+    public function test_super_admin_sees_payments_across_all_vendors(): void
+    {
+        Payment::factory()->count(2)->create();
+        Payment::factory()->count(3)->create();
+
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $this->getJson('/api/v1/payments')->assertOk()->assertJsonCount(5, 'data');
+    }
+
     public function test_staff_can_initiate_a_payment_and_receive_a_payment_url(): void
     {
         $booking = $this->makeBooking();
