@@ -59,7 +59,7 @@ class BookingController extends Controller
      */
     public function show(Booking $booking)
     {
-        return new BookingResource($booking);
+        return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'user']));
     }
 
     /**

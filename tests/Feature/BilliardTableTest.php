@@ -24,6 +24,19 @@ class BilliardTableTest extends TestCase
         ]);
     }
 
+    public function test_show_includes_the_related_venue(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $table = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->getJson("/api/v1/tables/{$table->id}")
+            ->assertOk()
+            ->assertJsonPath('data.venue.id', $venue->id);
+    }
+
     public function test_index_is_scoped_to_the_authenticated_users_vendor(): void
     {
         $vendor = Vendor::factory()->create();

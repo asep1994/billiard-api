@@ -49,7 +49,7 @@ class VenueController extends Controller
      */
     public function show(Venue $venue)
     {
-        return new VenueResource($venue);
+        return new VenueResource($venue->load('vendor'));
     }
 
     /**

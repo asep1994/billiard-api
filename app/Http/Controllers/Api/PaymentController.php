@@ -79,7 +79,7 @@ class PaymentController extends Controller
 
         $payment->update(['duitku_reference' => $duitkuResponse['reference'] ?? null]);
 
-        return (new PaymentResource($payment->refresh()))
+        return (new PaymentResource($payment->refresh()->load(['booking.customer', 'booking.billiardTable'])))
             ->additional(['payment_url' => $duitkuResponse['paymentUrl'] ?? null])
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);

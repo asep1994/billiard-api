@@ -89,6 +89,7 @@ class PaymentTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.duitku_reference', 'D12345REF')
+            ->assertJsonPath('data.booking.id', $booking->id)
             ->assertJsonPath('payment_url', 'https://sandbox.duitku.com/topup/D12345REF');
 
         $this->assertDatabaseHas('payments', [

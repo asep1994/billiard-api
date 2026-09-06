@@ -24,6 +24,18 @@ class VenueTest extends TestCase
         $this->getJson('/api/v1/venues')->assertOk()->assertJsonCount(2, 'data');
     }
 
+    public function test_show_includes_the_related_vendor(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->getJson("/api/v1/venues/{$venue->id}")
+            ->assertOk()
+            ->assertJsonPath('data.vendor.id', $vendor->id);
+    }
+
     public function test_super_admin_sees_venues_across_all_vendors(): void
     {
         Venue::factory()->count(2)->create();

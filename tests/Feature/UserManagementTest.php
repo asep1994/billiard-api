@@ -20,6 +20,18 @@ class UserManagementTest extends TestCase
         $this->getJson('/api/v1/users')->assertForbidden();
     }
 
+    public function test_show_includes_the_related_vendor(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $admin = User::factory()->vendorAdmin($vendor)->create();
+
+        Sanctum::actingAs($admin);
+
+        $this->getJson("/api/v1/users/{$admin->id}")
+            ->assertOk()
+            ->assertJsonPath('data.vendor.id', $vendor->id);
+    }
+
     public function test_vendor_admin_only_sees_users_from_their_own_vendor(): void
     {
         $vendor = Vendor::factory()->create();

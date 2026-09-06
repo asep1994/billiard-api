@@ -49,7 +49,7 @@ class BilliardTableController extends Controller
      */
     public function show(BilliardTable $table)
     {
-        return new BilliardTableResource($table);
+        return new BilliardTableResource($table->load('venue'));
     }
 
     /**

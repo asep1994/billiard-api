@@ -46,6 +46,25 @@ class BookingTest extends TestCase
             ->assertJsonPath('data.payment_status', 'unpaid');
     }
 
+    public function test_show_includes_the_related_venue_table_and_customer(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->getJson("/api/v1/bookings/{$booking->id}")
+            ->assertOk()
+            ->assertJsonPath('data.venue.id', $venue->id)
+            ->assertJsonPath('data.billiard_table.id', $table->id)
+            ->assertJsonPath('data.customer.id', $customer->id);
+    }
+
     public function test_a_naive_start_time_is_interpreted_in_the_application_timezone(): void
     {
         // Guards against a real bug: app.timezone defaulted to UTC while the
