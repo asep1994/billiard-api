@@ -45,13 +45,14 @@ class PaymentController extends Controller
         }
 
         $customer = $booking->customer;
-        $paymentAmount = (int) round((float) $booking->total_price);
+        $payableAmount = round((float) $booking->total_price - (float) $booking->discount_amount, 2);
+        $paymentAmount = (int) round($payableAmount);
 
         $payment = Payment::create([
             'booking_id' => $booking->id,
             'merchant_order_id' => 'BOOK-'.$booking->id.'-'.Str::upper(Str::random(8)),
             'payment_method' => $request->validated('payment_method'),
-            'amount' => $booking->total_price,
+            'amount' => $payableAmount,
             'status' => PaymentGatewayStatus::Pending,
         ]);
 

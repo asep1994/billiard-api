@@ -6,6 +6,7 @@ use App\Enums\BookingStatus;
 use App\Models\BilliardTable;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\Promotion;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Venue;
@@ -44,6 +45,71 @@ class BookingTest extends TestCase
             ->assertJsonPath('data.total_price', '100000.00')
             ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.payment_status', 'unpaid');
+    }
+
+    public function test_a_valid_promo_code_discounts_the_booking(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();
+        $promotion = Promotion::factory()->create([
+            'vendor_id' => $vendor->id,
+            'code' => 'DISKON20',
+            'type' => 'percentage',
+            'value' => 20,
+            'max_discount' => null,
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->postJson('/api/v1/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+            'promo_code' => 'DISKON20',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.total_price', '100000.00')
+            ->assertJsonPath('data.discount_amount', '20000.00')
+            ->assertJsonPath('data.payable_amount', 80000)
+            ->assertJsonPath('data.promotion.code', 'DISKON20');
+
+        $this->assertSame(1, $promotion->fresh()->times_used);
+    }
+
+    public function test_an_expired_promo_code_is_rejected(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();
+        Promotion::factory()->expired()->create(['vendor_id' => $vendor->id, 'code' => 'EXPIRED10']);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->postJson('/api/v1/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+            'promo_code' => 'EXPIRED10',
+        ])->assertUnprocessable()->assertJsonValidationErrors('promo_code');
+    }
+
+    public function test_a_promo_code_from_another_vendor_is_rejected(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();
+        Promotion::factory()->create(['code' => 'FOREIGN10']);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->postJson('/api/v1/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+            'promo_code' => 'FOREIGN10',
+        ])->assertUnprocessable()->assertJsonValidationErrors('promo_code');
     }
 
     public function test_show_includes_the_related_venue_table_and_customer(): void

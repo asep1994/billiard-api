@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\BilliardTable;
 use App\Models\Booking;
+use App\Models\Promotion;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -31,7 +32,7 @@ class BookingController extends Controller
         $perPage = min($request->integer('per_page', 15), 100);
 
         return BookingResource::collection(
-            $bookings->with(['venue', 'billiardTable', 'customer'])->latest('start_time')->paginate($perPage)
+            $bookings->with(['venue', 'billiardTable', 'customer', 'promotion'])->latest('start_time')->paginate($perPage)
         );
     }
 
@@ -49,7 +50,24 @@ class BookingController extends Controller
             $data['end_time'],
         );
 
-        $booking = Booking::create($data)->refresh();
+        $promotion = null;
+
+        if (! empty($data['promo_code'])) {
+            $promotion = Promotion::where('vendor_id', $data['vendor_id'])
+                ->where('code', $data['promo_code'])
+                ->first();
+        }
+
+        unset($data['promo_code']);
+
+        if ($promotion) {
+            $data['promotion_id'] = $promotion->id;
+            $data['discount_amount'] = $promotion->calculateDiscount($data['total_price']);
+        }
+
+        $booking = Booking::create($data)->refresh()->load(['venue', 'billiardTable', 'customer', 'promotion']);
+
+        $promotion?->increment('times_used');
 
         return (new BookingResource($booking))->response()->setStatusCode(Response::HTTP_CREATED);
     }
@@ -59,7 +77,7 @@ class BookingController extends Controller
      */
     public function show(Booking $booking)
     {
-        return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'user']));
+        return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'user', 'promotion']));
     }
 
     /**
@@ -83,7 +101,7 @@ class BookingController extends Controller
 
         $booking->update($data);
 
-        return new BookingResource($booking);
+        return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'user', 'promotion']));
     }
 
     /**

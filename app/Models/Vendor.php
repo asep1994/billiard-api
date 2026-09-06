@@ -63,4 +63,12 @@ class Vendor extends Model
     {
         return $this->hasMany(Booking::class);
     }
+
+    /**
+     * @return HasMany<Promotion, $this>
+     */
+    public function promotions(): HasMany
+    {
+        return $this->hasMany(Promotion::class);
+    }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\BookingStatus;
 use App\Enums\PaymentStatus;
 use App\Models\Booking;
+use App\Models\Promotion;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -39,6 +40,7 @@ class StoreBookingRequest extends FormRequest
             'end_time' => ['required', 'date', 'after:start_time'],
             'status' => ['sometimes', Rule::enum(BookingStatus::class)],
             'payment_status' => ['sometimes', Rule::enum(PaymentStatus::class)],
+            'promo_code' => ['nullable', 'string', Rule::exists('promotions', 'code')->where('vendor_id', $vendorId)],
             'notes' => ['nullable', 'string'],
         ];
     }
@@ -62,6 +64,22 @@ class StoreBookingRequest extends FormRequest
 
             if ($overlaps) {
                 $validator->errors()->add('billiard_table_id', 'This table is already booked for the selected time range.');
+            }
+        });
+
+        $validator->after(function (Validator $validator): void {
+            if (! $this->filled('promo_code')) {
+                return;
+            }
+
+            $vendorId = $this->user()->isSuperAdmin() ? $this->integer('vendor_id') : $this->user()->vendor_id;
+
+            $promotion = Promotion::where('vendor_id', $vendorId)
+                ->where('code', $this->input('promo_code'))
+                ->first();
+
+            if ($promotion && ! $promotion->isValidNow()) {
+                $validator->errors()->add('promo_code', 'This promo code is no longer valid.');
             }
         });
     }

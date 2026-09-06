@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\BilliardTableController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VendorController;
 use App\Http\Controllers\Api\VenueController;
@@ -26,6 +27,7 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('bookings', BookingController::class);
         Route::post('bookings/{booking}/pay', [PaymentController::class, 'initiate']);
         Route::get('payments', [PaymentController::class, 'index']);
+        Route::apiResource('promotions', PromotionController::class);
         Route::apiResource('users', UserController::class);
     });
 });

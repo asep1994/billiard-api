@@ -20,11 +20,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'billiard_table_id',
     'customer_id',
     'user_id',
+    'promotion_id',
     'start_time',
     'end_time',
     'status',
     'payment_status',
     'total_price',
+    'discount_amount',
     'notes',
 ])]
 #[UseFactory(BookingFactory::class)]
@@ -47,6 +49,7 @@ class Booking extends Model
             'status' => BookingStatus::class,
             'payment_status' => PaymentStatus::class,
             'total_price' => 'decimal:2',
+            'discount_amount' => 'decimal:2',
         ];
     }
 
@@ -96,5 +99,13 @@ class Booking extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * @return BelongsTo<Promotion, $this>
+     */
+    public function promotion(): BelongsTo
+    {
+        return $this->belongsTo(Promotion::class);
     }
 }
