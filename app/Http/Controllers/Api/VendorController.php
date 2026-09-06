@@ -7,6 +7,7 @@ use App\Http\Requests\StoreVendorRequest;
 use App\Http\Requests\UpdateVendorRequest;
 use App\Http\Resources\VendorResource;
 use App\Models\Vendor;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class VendorController extends Controller
@@ -19,9 +20,11 @@ class VendorController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return VendorResource::collection(Vendor::paginate());
+        $perPage = min($request->integer('per_page', 15), 100);
+
+        return VendorResource::collection(Vendor::latest()->paginate($perPage));
     }
 
     /**
