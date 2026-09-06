@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\BookingStatus;
 use App\Enums\PaymentStatus;
 use App\Policies\BookingPolicy;
+use Carbon\Carbon;
 use Database\Factories\BookingFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\UseFactory;
@@ -107,5 +108,28 @@ class Booking extends Model
     public function promotion(): BelongsTo
     {
         return $this->belongsTo(Promotion::class);
+    }
+
+    /**
+     * Calculate the total price for a booking based on the table's hourly rate.
+     */
+    public static function calculateTotalPrice(BilliardTable $table, string|Carbon $start, string|Carbon $end): float
+    {
+        $hours = Carbon::parse($start)->diffInMinutes(Carbon::parse($end)) / 60;
+
+        return round((float) $table->hourly_rate * $hours, 2);
+    }
+
+    /**
+     * Determine whether a table already has a non-cancelled booking overlapping the given time range.
+     */
+    public static function overlapsExisting(int $billiardTableId, string|Carbon $start, string|Carbon $end): bool
+    {
+        return self::query()
+            ->where('billiard_table_id', $billiardTableId)
+            ->where('status', '!=', BookingStatus::Cancelled)
+            ->where('start_time', '<', $end)
+            ->where('end_time', '>', $start)
+            ->exists();
     }
 }

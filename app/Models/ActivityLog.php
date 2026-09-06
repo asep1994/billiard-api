@@ -20,7 +20,8 @@ class ActivityLog extends Model
 
     /**
      * Record an activity entry for the currently authenticated user (or the
-     * system, e.g. a payment gateway webhook, if no user is authenticated).
+     * system - e.g. a payment gateway webhook or a self-service action from
+     * the customer app - if no staff/admin user is authenticated).
      */
     public static function record(
         ActivityAction $action,
@@ -29,9 +30,11 @@ class ActivityLog extends Model
         string $description,
         ?int $vendorId,
     ): self {
+        $actor = Auth::user();
+
         return self::create([
             'vendor_id' => $vendorId,
-            'user_id' => Auth::id(),
+            'user_id' => $actor instanceof User ? $actor->id : null,
             'action' => $action,
             'subject_type' => $subjectType,
             'subject_id' => $subjectId,

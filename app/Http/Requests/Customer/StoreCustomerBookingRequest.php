@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Customer;
 
-use App\Enums\BookingStatus;
-use App\Enums\PaymentStatus;
+use App\Enums\Status;
 use App\Models\Booking;
 use App\Models\Promotion;
+use App\Models\Venue;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreBookingRequest extends FormRequest
+class StoreCustomerBookingRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -28,20 +28,13 @@ class StoreBookingRequest extends FormRequest
      */
     public function rules(): array
     {
-        $vendorId = $this->user()->isSuperAdmin() ? $this->integer('vendor_id') : $this->user()->vendor_id;
-
         return [
-            'vendor_id' => [Rule::requiredIf($this->user()->isSuperAdmin()), 'integer', 'exists:vendors,id'],
-            'venue_id' => ['required', 'integer', Rule::exists('venues', 'id')->where('vendor_id', $vendorId)],
+            'venue_id' => ['required', 'integer', Rule::exists('venues', 'id')->where('status', Status::Active->value)],
             'billiard_table_id' => ['required', 'integer', Rule::exists('billiard_tables', 'id')->where('venue_id', $this->input('venue_id'))],
-            'customer_id' => ['required', 'integer', Rule::exists('customers', 'id')->where('vendor_id', $vendorId)],
-            'user_id' => ['nullable', 'integer', Rule::exists('users', 'id')->where('vendor_id', $vendorId)],
-            'start_time' => ['required', 'date'],
+            'start_time' => ['required', 'date', 'after:now'],
             'end_time' => ['required', 'date', 'after:start_time'],
-            'status' => ['sometimes', Rule::enum(BookingStatus::class)],
-            'payment_status' => ['sometimes', Rule::enum(PaymentStatus::class)],
-            'promo_code' => ['nullable', 'string', Rule::exists('promotions', 'code')->where('vendor_id', $vendorId)],
-            'notes' => ['nullable', 'string'],
+            'promo_code' => ['nullable', 'string'],
+            'notes' => ['nullable', 'string', 'max:500'],
         ];
     }
 
@@ -55,25 +48,23 @@ class StoreBookingRequest extends FormRequest
                 return;
             }
 
-            $overlaps = Booking::overlapsExisting(
-                $this->integer('billiard_table_id'),
-                $this->input('start_time'),
-                $this->input('end_time'),
-            );
-
-            if ($overlaps) {
+            if (Booking::overlapsExisting($this->integer('billiard_table_id'), $this->input('start_time'), $this->input('end_time'))) {
                 $validator->errors()->add('billiard_table_id', 'This table is already booked for the selected time range.');
             }
         });
 
         $validator->after(function (Validator $validator): void {
-            if (! $this->filled('promo_code')) {
+            if (! $this->filled(['venue_id', 'promo_code'])) {
                 return;
             }
 
-            $vendorId = $this->user()->isSuperAdmin() ? $this->integer('vendor_id') : $this->user()->vendor_id;
+            $venue = Venue::find($this->input('venue_id'));
 
-            $promotion = Promotion::where('vendor_id', $vendorId)
+            if (! $venue) {
+                return;
+            }
+
+            $promotion = Promotion::where('vendor_id', $venue->vendor_id)
                 ->where('code', $this->input('promo_code'))
                 ->first();
 

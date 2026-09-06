@@ -15,7 +15,6 @@ use App\Models\Booking;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Notifications\NewBookingCreated;
-use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Notification;
@@ -55,7 +54,7 @@ class BookingController extends Controller
         $data = $request->validated();
         $data['vendor_id'] = $request->user()->isSuperAdmin() ? $data['vendor_id'] : $request->user()->vendor_id;
         $data['user_id'] ??= $request->user()->id;
-        $data['total_price'] = $this->calculateTotalPrice(
+        $data['total_price'] = Booking::calculateTotalPrice(
             BilliardTable::findOrFail($data['billiard_table_id']),
             $data['start_time'],
             $data['end_time'],
@@ -118,7 +117,7 @@ class BookingController extends Controller
                 ? BilliardTable::findOrFail($data['billiard_table_id'])
                 : $booking->billiardTable;
 
-            $data['total_price'] = $this->calculateTotalPrice(
+            $data['total_price'] = Booking::calculateTotalPrice(
                 $table,
                 $data['start_time'] ?? $booking->start_time,
                 $data['end_time'] ?? $booking->end_time,
@@ -151,15 +150,5 @@ class BookingController extends Controller
         $booking->delete();
 
         return response()->noContent();
-    }
-
-    /**
-     * Calculate the total price for a booking based on the table's hourly rate.
-     */
-    private function calculateTotalPrice(BilliardTable $table, string|Carbon $start, string|Carbon $end): float
-    {
-        $hours = Carbon::parse($start)->diffInMinutes(Carbon::parse($end)) / 60;
-
-        return round((float) $table->hourly_rate * $hours, 2);
     }
 }

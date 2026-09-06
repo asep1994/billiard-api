@@ -26,6 +26,7 @@ class VenueResource extends JsonResource
             'opening_time' => $this->opening_time?->format('H:i'),
             'closing_time' => $this->closing_time?->format('H:i'),
             'status' => $this->status,
+            'tables' => BilliardTableResource::collection($this->whenLoaded('billiardTables')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['vendor_id', 'name', 'phone', 'email'])]
+#[Fillable(['vendor_id', 'customer_account_id', 'name', 'phone', 'email'])]
 #[UseFactory(CustomerFactory::class)]
 #[UsePolicy(CustomerPolicy::class)]
 class Customer extends Model
@@ -26,6 +26,14 @@ class Customer extends Model
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Vendor::class);
+    }
+
+    /**
+     * @return BelongsTo<CustomerAccount, $this>
+     */
+    public function customerAccount(): BelongsTo
+    {
+        return $this->belongsTo(CustomerAccount::class);
     }
 
     /**

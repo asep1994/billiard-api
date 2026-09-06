@@ -15,11 +15,11 @@ use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\User;
 use App\Notifications\PaymentReceived;
+use App\Services\BookingPaymentService;
 use App\Services\DuitkuService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Str;
 
 class PaymentController extends Controller
 {
@@ -42,54 +42,23 @@ class PaymentController extends Controller
     /**
      * Create a Duitku transaction for a booking and return the payment URL.
      */
-    public function initiate(InitiatePaymentRequest $request, Booking $booking, DuitkuService $duitku)
+    public function initiate(InitiatePaymentRequest $request, Booking $booking, BookingPaymentService $paymentService)
     {
         $this->authorize('update', $booking);
 
-        if ($booking->payments()->where('status', PaymentGatewayStatus::Paid)->exists()) {
-            return response()->json(['message' => 'This booking has already been paid.'], Response::HTTP_CONFLICT);
-        }
+        $result = $paymentService->initiate($booking, $request->validated('payment_method'));
 
-        $customer = $booking->customer;
-        $payableAmount = round((float) $booking->total_price - (float) $booking->discount_amount, 2);
-        $paymentAmount = (int) round($payableAmount);
-
-        $payment = Payment::create([
-            'booking_id' => $booking->id,
-            'merchant_order_id' => 'BOOK-'.$booking->id.'-'.Str::upper(Str::random(8)),
-            'payment_method' => $request->validated('payment_method'),
-            'amount' => $payableAmount,
-            'status' => PaymentGatewayStatus::Pending,
-        ]);
-
-        $duitkuResponse = $duitku->createTransaction([
-            'paymentAmount' => $paymentAmount,
-            'paymentMethod' => $payment->payment_method,
-            'merchantOrderId' => $payment->merchant_order_id,
-            'productDetails' => "Booking #{$booking->id}",
-            'email' => $customer->email ?? 'guest@billiard.test',
-            'customerVaName' => $customer->name,
-            'phoneNumber' => $customer->phone,
-            'callbackUrl' => route('payments.callback'),
-            'returnUrl' => config('app.url'),
-            'expiryPeriod' => 60,
-        ]);
-
-        if (($duitkuResponse['statusCode'] ?? null) !== '00') {
-            $payment->update(['status' => PaymentGatewayStatus::Failed]);
-
-            return response()->json([
+        return match ($result['status']) {
+            'already_paid' => response()->json(['message' => 'This booking has already been paid.'], Response::HTTP_CONFLICT),
+            'duitku_failed' => response()->json([
                 'message' => 'Failed to create Duitku transaction.',
-                'duitku_response' => $duitkuResponse,
-            ], Response::HTTP_BAD_GATEWAY);
-        }
-
-        $payment->update(['duitku_reference' => $duitkuResponse['reference'] ?? null]);
-
-        return (new PaymentResource($payment->refresh()->load(['booking.customer', 'booking.billiardTable'])))
-            ->additional(['payment_url' => $duitkuResponse['paymentUrl'] ?? null])
-            ->response()
-            ->setStatusCode(Response::HTTP_CREATED);
+                'duitku_response' => $result['duitku_response'],
+            ], Response::HTTP_BAD_GATEWAY),
+            'created' => (new PaymentResource($result['payment']))
+                ->additional(['payment_url' => $result['payment_url']])
+                ->response()
+                ->setStatusCode(Response::HTTP_CREATED),
+        };
     }
 
     /**

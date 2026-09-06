@@ -5,6 +5,9 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BilliardTableController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CommissionController;
+use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
+use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingController;
+use App\Http\Controllers\Api\Customer\VenueController as CustomerVenueController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PaymentController;
@@ -20,7 +23,7 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/payments/callback', [PaymentController::class, 'callback'])->name('payments.callback');
 
-    Route::middleware('auth:sanctum')->group(function (): void {
+    Route::middleware(['auth:sanctum', 'admin.user'])->group(function (): void {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
 
@@ -42,5 +45,27 @@ Route::prefix('v1')->group(function (): void {
         Route::get('payouts', [PayoutController::class, 'index']);
         Route::post('payouts', [PayoutController::class, 'store']);
         Route::apiResource('reviews', ReviewController::class)->only(['index', 'store', 'update', 'destroy']);
+    });
+
+    // Customer-facing API (Flutter app): a platform-wide account that can
+    // browse and book at any vendor, kept fully separate from the admin
+    // dashboard's auth via the `customer.account` / `admin.user` guards.
+    Route::prefix('customer')->group(function (): void {
+        Route::post('/register', [CustomerAuthController::class, 'register']);
+        Route::post('/login', [CustomerAuthController::class, 'login']);
+
+        Route::get('/venues', [CustomerVenueController::class, 'index']);
+        Route::get('/venues/{venue}', [CustomerVenueController::class, 'show']);
+        Route::get('/venues/{venue}/available-tables', [CustomerVenueController::class, 'availableTables']);
+
+        Route::middleware(['auth:sanctum', 'customer.account'])->group(function (): void {
+            Route::post('/logout', [CustomerAuthController::class, 'logout']);
+            Route::get('/me', [CustomerAuthController::class, 'me']);
+
+            Route::get('/bookings', [CustomerBookingController::class, 'index']);
+            Route::post('/bookings', [CustomerBookingController::class, 'store']);
+            Route::get('/bookings/{booking}', [CustomerBookingController::class, 'show']);
+            Route::post('/bookings/{booking}/pay', [CustomerBookingController::class, 'pay']);
+        });
     });
 });
