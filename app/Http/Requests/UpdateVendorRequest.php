@@ -31,6 +31,7 @@ class UpdateVendorRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string'],
             'status' => ['sometimes', Rule::enum(Status::class)],
+            'commission_rate' => [$this->user()->isSuperAdmin() ? 'sometimes' : 'prohibited', 'numeric', 'min:0', 'max:100'],
         ];
     }
 }

@@ -120,11 +120,17 @@ class PaymentController extends Controller
         }
 
         if ($data['resultCode'] === '00') {
+            $commissionRate = (float) $payment->booking->vendor->commission_rate;
+            $commissionAmount = round((float) $payment->amount * $commissionRate / 100, 2);
+            $vendorPayoutAmount = round((float) $payment->amount - $commissionAmount, 2);
+
             $payment->update([
                 'status' => PaymentGatewayStatus::Paid,
                 'duitku_reference' => $data['reference'] ?? $payment->duitku_reference,
                 'payment_method' => $data['paymentCode'] ?? $payment->payment_method,
                 'paid_at' => now(),
+                'commission_amount' => $commissionAmount,
+                'vendor_payout_amount' => $vendorPayoutAmount,
             ]);
 
             $payment->booking->update(['payment_status' => PaymentStatus::Paid]);

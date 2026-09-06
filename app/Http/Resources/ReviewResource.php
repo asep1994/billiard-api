@@ -5,7 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class PaymentResource extends JsonResource
+class ReviewResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -16,16 +16,15 @@ class PaymentResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'vendor_id' => $this->vendor_id,
+            'venue_id' => $this->venue_id,
+            'venue' => new VenueResource($this->whenLoaded('venue')),
             'booking_id' => $this->booking_id,
             'booking' => new BookingResource($this->whenLoaded('booking')),
-            'merchant_order_id' => $this->merchant_order_id,
-            'duitku_reference' => $this->duitku_reference,
-            'payment_method' => $this->payment_method,
-            'amount' => $this->amount,
-            'commission_amount' => $this->commission_amount,
-            'vendor_payout_amount' => $this->vendor_payout_amount,
-            'status' => $this->status,
-            'paid_at' => $this->paid_at,
+            'customer_id' => $this->customer_id,
+            'customer' => new CustomerResource($this->whenLoaded('customer')),
+            'rating' => $this->rating,
+            'comment' => $this->comment,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

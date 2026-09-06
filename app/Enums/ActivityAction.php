@@ -9,4 +9,5 @@ enum ActivityAction: string
     case Deleted = 'deleted';
     case Cancelled = 'cancelled';
     case Paid = 'paid';
+    case Payout = 'payout';
 }

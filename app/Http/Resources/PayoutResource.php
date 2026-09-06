@@ -5,7 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class VendorResource extends JsonResource
+class PayoutResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -16,15 +16,14 @@ class VendorResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'name' => $this->name,
-            'slug' => $this->slug,
-            'email' => $this->email,
-            'phone' => $this->phone,
-            'address' => $this->address,
-            'status' => $this->status,
-            'commission_rate' => (float) $this->commission_rate,
+            'vendor_id' => $this->vendor_id,
+            'vendor' => new VendorResource($this->whenLoaded('vendor')),
+            'user_id' => $this->user_id,
+            'recorded_by' => new UserResource($this->whenLoaded('user')),
+            'amount' => $this->amount,
+            'note' => $this->note,
+            'paid_at' => $this->paid_at,
             'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
         ];
     }
 }

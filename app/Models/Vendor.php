@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'email', 'phone', 'address', 'status'])]
+#[Fillable(['name', 'slug', 'email', 'phone', 'address', 'status', 'commission_rate'])]
 #[UseFactory(VendorFactory::class)]
 #[UsePolicy(VendorPolicy::class)]
 class Vendor extends Model
@@ -29,6 +29,7 @@ class Vendor extends Model
     {
         return [
             'status' => Status::class,
+            'commission_rate' => 'decimal:2',
         ];
     }
 
@@ -70,5 +71,13 @@ class Vendor extends Model
     public function promotions(): HasMany
     {
         return $this->hasMany(Promotion::class);
+    }
+
+    /**
+     * @return HasMany<Payout, $this>
+     */
+    public function payouts(): HasMany
+    {
+        return $this->hasMany(Payout::class);
     }
 }

@@ -58,4 +58,12 @@ class Venue extends Model
     {
         return $this->hasMany(Booking::class);
     }
+
+    /**
+     * @return HasMany<Review, $this>
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
+    }
 }
