@@ -26,7 +26,7 @@ class BookingPaymentService
         }
 
         $customer = $booking->customer;
-        $payableAmount = round((float) $booking->total_price - (float) $booking->discount_amount, 2);
+        $payableAmount = $booking->payableAmount();
         $paymentAmount = (int) round($payableAmount);
 
         $payment = Payment::create([

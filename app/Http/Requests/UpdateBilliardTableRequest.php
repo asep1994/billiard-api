@@ -34,6 +34,10 @@ class UpdateBilliardTableRequest extends FormRequest
             ],
             'type' => ['sometimes', Rule::enum(TableType::class)],
             'hourly_rate' => ['sometimes', 'numeric', 'min:0'],
+            'duration_prices' => ['nullable', 'array'],
+            'duration_prices.1' => ['nullable', 'numeric', 'min:0'],
+            'duration_prices.2' => ['nullable', 'numeric', 'min:0'],
+            'duration_prices.3' => ['nullable', 'numeric', 'min:0'],
             'status' => ['sometimes', Rule::enum(TableStatus::class)],
         ];
     }

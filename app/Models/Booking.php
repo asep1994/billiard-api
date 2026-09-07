@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'payment_status',
     'total_price',
     'discount_amount',
+    'service_fee',
     'notes',
 ])]
 #[UseFactory(BookingFactory::class)]
@@ -51,6 +52,7 @@ class Booking extends Model
             'payment_status' => PaymentStatus::class,
             'total_price' => 'decimal:2',
             'discount_amount' => 'decimal:2',
+            'service_fee' => 'decimal:2',
         ];
     }
 
@@ -111,13 +113,36 @@ class Booking extends Model
     }
 
     /**
-     * Calculate the total price for a booking based on the table's hourly rate.
+     * Calculate the total price for a booking. Whole-hour durations use the
+     * table's flat package price when the vendor set one (e.g. a discounted
+     * 2-jam rate); any other duration falls back to hourly_rate * hours.
      */
     public static function calculateTotalPrice(BilliardTable $table, string|Carbon $start, string|Carbon $end): float
     {
-        $hours = Carbon::parse($start)->diffInMinutes(Carbon::parse($end)) / 60;
+        $minutes = Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
+        $hours = $minutes / 60;
+
+        if ($minutes % 60 === 0) {
+            $packagePrice = $table->priceForHours((int) $hours);
+
+            if ($packagePrice !== null) {
+                return round($packagePrice, 2);
+            }
+        }
 
         return round((float) $table->hourly_rate * $hours, 2);
+    }
+
+    /**
+     * The actual amount owed: table price, minus any promo discount, plus
+     * the platform service fee. The single source of truth for this sum -
+     * BookingResource and BookingPaymentService both use it, so the amount
+     * shown to the customer and the amount actually charged via Duitku can
+     * never drift apart.
+     */
+    public function payableAmount(): float
+    {
+        return round((float) $this->total_price - (float) $this->discount_amount + (float) $this->service_fee, 2);
     }
 
     /**

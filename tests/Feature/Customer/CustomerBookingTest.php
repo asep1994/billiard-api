@@ -62,6 +62,26 @@ class CustomerBookingTest extends TestCase
         ]);
     }
 
+    public function test_customer_booking_includes_the_platform_service_fee_in_the_payable_amount(): void
+    {
+        config(['booking.service_fee' => 3000]);
+        ['venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        Sanctum::actingAs(CustomerAccount::factory()->create());
+
+        $response = $this->postJson('/api/v1/customer/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+        ]);
+
+        // Table is 100000/hr (see makeVenueContext) -> 200000 for 2h + 3000 fee.
+        $response->assertCreated()
+            ->assertJsonPath('data.total_price', '200000.00')
+            ->assertJsonPath('data.service_fee', '3000.00')
+            ->assertJsonPath('data.payable_amount', 203000);
+    }
+
     public function test_utc_tagged_start_time_is_stored_as_the_correct_jakarta_wall_clock_hour(): void
     {
         // Regression: the Flutter app sends UTC-tagged ISO8601 instants

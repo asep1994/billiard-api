@@ -250,4 +250,42 @@ class BilliardTableTest extends TestCase
 
         $response->assertForbidden();
     }
+
+    public function test_vendor_admin_can_set_duration_package_prices_when_creating_a_table(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $response = $this->postJson('/api/v1/tables', [
+            'venue_id' => $venue->id,
+            'name' => 'Table 1',
+            'type' => '8_ball',
+            'hourly_rate' => 60000,
+            'duration_prices' => [1 => 60000, 2 => 110000, 3 => 160000],
+        ]);
+
+        $response->assertCreated()->assertJsonPath('data.duration_prices', ['1' => 60000, '2' => 110000, '3' => 160000]);
+    }
+
+    public function test_vendor_admin_can_update_duration_package_prices(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $table = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->putJson("/api/v1/tables/{$table->id}", ['duration_prices' => [1 => 60000, 2 => 110000]])
+            ->assertOk()
+            ->assertJsonPath('data.duration_prices', ['1' => 60000, '2' => 110000]);
+    }
+
+    public function test_table_without_duration_prices_returns_an_empty_object(): void
+    {
+        $venue = Venue::factory()->create();
+        $table = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        Sanctum::actingAs(User::factory()->vendorAdmin(Vendor::find($venue->vendor_id))->create());
+
+        $this->getJson("/api/v1/tables/{$table->id}")->assertOk()->assertJsonPath('data.duration_prices', []);
+    }
 }

@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['venue_id', 'name', 'type', 'hourly_rate', 'status'])]
+#[Fillable(['venue_id', 'name', 'type', 'hourly_rate', 'duration_prices', 'status'])]
 #[UseFactory(BilliardTableFactory::class)]
 #[UsePolicy(BilliardTablePolicy::class)]
 class BilliardTable extends Model
@@ -32,8 +32,21 @@ class BilliardTable extends Model
         return [
             'type' => TableType::class,
             'hourly_rate' => 'decimal:2',
+            'duration_prices' => 'array',
             'status' => TableStatus::class,
         ];
+    }
+
+    /**
+     * The flat package price for a whole-hour duration, if the vendor set
+     * one - otherwise null, meaning the caller should fall back to
+     * hourly_rate * hours.
+     */
+    public function priceForHours(int $hours): ?float
+    {
+        $price = ($this->duration_prices ?? [])[$hours] ?? null;
+
+        return $price !== null ? (float) $price : null;
     }
 
     /**

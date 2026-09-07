@@ -99,6 +99,41 @@ class PaymentTest extends TestCase
         ]);
     }
 
+    public function test_the_charged_amount_includes_the_bookings_service_fee(): void
+    {
+        // Regression: BookingPaymentService used to compute the charged
+        // amount from total_price - discount_amount directly, ignoring
+        // service_fee entirely, so the amount actually billed via Duitku
+        // was less than what the customer app displayed as the total.
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $table = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'total_price' => 100000,
+            'service_fee' => 3000,
+        ]);
+
+        Http::fake([
+            'sandbox.duitku.com/*' => Http::response([
+                'statusCode' => '00',
+                'reference' => 'D1',
+                'paymentUrl' => 'https://sandbox.duitku.com/topup/D1',
+            ]),
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->postJson("/api/v1/bookings/{$booking->id}/pay", ['payment_method' => 'VC']);
+
+        Http::assertSent(fn (ClientRequest $request) => $request->data()['paymentAmount'] === 103000);
+        $this->assertSame(103000.0, (float) $booking->payments()->first()->amount);
+    }
+
     public function test_the_create_transaction_request_carries_a_correctly_computed_signature(): void
     {
         $booking = $this->makeBooking();

@@ -47,6 +47,50 @@ class BookingTest extends TestCase
             ->assertJsonPath('data.payment_status', 'unpaid');
     }
 
+    public function test_a_whole_hour_booking_uses_the_tables_duration_package_price_when_set(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'customer' => $customer] = $this->makeVendorContext();
+        $table = BilliardTable::factory()->create([
+            'venue_id' => $venue->id,
+            'hourly_rate' => 60000,
+            'duration_prices' => [2 => 110000],
+        ]);
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->postJson('/api/v1/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+        ]);
+
+        // Linear would be 120000 (2 * 60000); the 2-jam package price wins.
+        $response->assertCreated()->assertJsonPath('data.total_price', '110000.00');
+    }
+
+    public function test_a_duration_without_a_package_price_falls_back_to_the_hourly_rate(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'customer' => $customer] = $this->makeVendorContext();
+        $table = BilliardTable::factory()->create([
+            'venue_id' => $venue->id,
+            'hourly_rate' => 60000,
+            'duration_prices' => [2 => 110000],
+        ]);
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $response = $this->postJson('/api/v1/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 13:00:00',
+        ]);
+
+        // 3 hours has no package price, so it falls back to 3 * 60000.
+        $response->assertCreated()->assertJsonPath('data.total_price', '180000.00');
+    }
+
     public function test_a_valid_promo_code_discounts_the_booking(): void
     {
         ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();

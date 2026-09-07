@@ -87,6 +87,7 @@ class BookingController extends Controller
             'payment_status' => PaymentStatus::Unpaid,
             'total_price' => $totalPrice,
             'discount_amount' => $discountAmount,
+            'service_fee' => config('booking.service_fee'),
             'notes' => $request->validated('notes'),
         ])->load(['venue', 'billiardTable', 'customer', 'promotion']);
 

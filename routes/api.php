@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CommissionController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingController;
+use App\Http\Controllers\Api\Customer\ConfigController as CustomerConfigController;
 use App\Http\Controllers\Api\Customer\FavoriteController as CustomerFavoriteController;
 use App\Http\Controllers\Api\Customer\PromotionController as CustomerPromotionController;
 use App\Http\Controllers\Api\Customer\ReviewController as CustomerReviewController;
@@ -63,6 +64,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/venues/{venue}/available-tables', [CustomerVenueController::class, 'availableTables']);
         Route::get('/venues/{venue}/reviews', [CustomerReviewController::class, 'index']);
         Route::get('/promotions', [CustomerPromotionController::class, 'index']);
+        Route::get('/config', [CustomerConfigController::class, 'index']);
 
         Route::middleware(['auth:sanctum', 'customer.account'])->group(function (): void {
             Route::post('/logout', [CustomerAuthController::class, 'logout']);
