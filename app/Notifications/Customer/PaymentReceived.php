@@ -7,6 +7,8 @@ use Illuminate\Notifications\Notification;
 
 class PaymentReceived extends Notification
 {
+    private const TITLE = 'Pembayaran diterima';
+
     public function __construct(private readonly Payment $payment) {}
 
     /**
@@ -14,7 +16,7 @@ class PaymentReceived extends Notification
      */
     public function via(object $notifiable): array
     {
-        return ['fcm'];
+        return ['database', 'fcm'];
     }
 
     /**
@@ -23,13 +25,31 @@ class PaymentReceived extends Notification
     public function toFcm(object $notifiable): array
     {
         return [
-            'title' => 'Pembayaran diterima',
-            'body' => sprintf(
-                'Pembayaran booking kamu di %s sebesar Rp%s telah kami terima.',
-                $this->payment->booking?->venue?->name ?? 'venue',
-                number_format((float) $this->payment->amount, 0, ',', '.'),
-            ),
+            'title' => self::TITLE,
+            'body' => $this->message(),
             'data' => ['type' => 'payment_received', 'booking_id' => (string) $this->payment->booking_id],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toDatabase(object $notifiable): array
+    {
+        return [
+            'type' => 'payment_received',
+            'title' => self::TITLE,
+            'message' => $this->message(),
+            'booking_id' => $this->payment->booking_id,
+        ];
+    }
+
+    private function message(): string
+    {
+        return sprintf(
+            'Pembayaran booking kamu di %s sebesar Rp%s telah kami terima.',
+            $this->payment->booking?->venue?->name ?? 'venue',
+            number_format((float) $this->payment->amount, 0, ',', '.'),
+        );
     }
 }

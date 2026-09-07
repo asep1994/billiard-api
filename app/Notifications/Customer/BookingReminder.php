@@ -5,9 +5,9 @@ namespace App\Notifications\Customer;
 use App\Models\Booking;
 use Illuminate\Notifications\Notification;
 
-class BookingConfirmed extends Notification
+class BookingReminder extends Notification
 {
-    private const TITLE = 'Booking dikonfirmasi';
+    private const TITLE = 'Booking kamu segera dimulai';
 
     public function __construct(private readonly Booking $booking) {}
 
@@ -27,7 +27,7 @@ class BookingConfirmed extends Notification
         return [
             'title' => self::TITLE,
             'body' => $this->message(),
-            'data' => ['type' => 'booking_confirmed', 'booking_id' => (string) $this->booking->id],
+            'data' => ['type' => 'booking_reminder', 'booking_id' => (string) $this->booking->id],
         ];
     }
 
@@ -37,7 +37,7 @@ class BookingConfirmed extends Notification
     public function toDatabase(object $notifiable): array
     {
         return [
-            'type' => 'booking_confirmed',
+            'type' => 'booking_reminder',
             'title' => self::TITLE,
             'message' => $this->message(),
             'booking_id' => $this->booking->id,
@@ -47,9 +47,9 @@ class BookingConfirmed extends Notification
     private function message(): string
     {
         return sprintf(
-            'Booking kamu di %s pada %s sudah dikonfirmasi vendor.',
+            'Booking di %s jam %s. Jangan lupa datang ya!',
             $this->booking->venue?->name ?? 'venue',
-            $this->booking->start_time->format('d M Y, H:i'),
+            $this->booking->start_time->format('H:i'),
         );
     }
 }

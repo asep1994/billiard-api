@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingContro
 use App\Http\Controllers\Api\Customer\ConfigController as CustomerConfigController;
 use App\Http\Controllers\Api\Customer\DeviceTokenController as CustomerDeviceTokenController;
 use App\Http\Controllers\Api\Customer\FavoriteController as CustomerFavoriteController;
+use App\Http\Controllers\Api\Customer\NotificationController as CustomerNotificationController;
 use App\Http\Controllers\Api\Customer\PromotionController as CustomerPromotionController;
 use App\Http\Controllers\Api\Customer\ReviewController as CustomerReviewController;
 use App\Http\Controllers\Api\Customer\VenueController as CustomerVenueController;
@@ -83,6 +84,10 @@ Route::prefix('v1')->group(function (): void {
 
             Route::post('/device-tokens', [CustomerDeviceTokenController::class, 'store']);
             Route::delete('/device-tokens', [CustomerDeviceTokenController::class, 'destroy']);
+
+            Route::get('/notifications', [CustomerNotificationController::class, 'index']);
+            Route::post('/notifications/read-all', [CustomerNotificationController::class, 'markAllAsRead']);
+            Route::post('/notifications/{notification}/read', [CustomerNotificationController::class, 'markAsRead']);
         });
     });
 });
