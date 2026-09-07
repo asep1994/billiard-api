@@ -54,6 +54,7 @@ class Booking extends Model
             'total_price' => 'decimal:2',
             'discount_amount' => 'decimal:2',
             'service_fee' => 'decimal:2',
+            'reminder_sent_at' => 'datetime',
         ];
     }
 
