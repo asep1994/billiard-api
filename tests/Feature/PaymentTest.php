@@ -6,13 +6,16 @@ use App\Enums\PaymentGatewayStatus;
 use App\Models\BilliardTable;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\CustomerAccount;
 use App\Models\Payment;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Venue;
+use App\Notifications\Customer\PaymentReceived as CustomerPaymentReceived;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -289,6 +292,40 @@ class PaymentTest extends TestCase
         ])->assertOk();
 
         $this->assertSame('ORIGINAL-REF', $payment->fresh()->duitku_reference);
+    }
+
+    public function test_callback_pushes_a_notification_to_the_customers_linked_account(): void
+    {
+        Notification::fake();
+
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        $table = BilliardTable::factory()->create(['venue_id' => $venue->id]);
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'total_price' => 100000,
+        ]);
+        $payment = Payment::factory()->create([
+            'booking_id' => $booking->id,
+            'merchant_order_id' => 'BOOK-1-PUSHCASE',
+            'amount' => 100000,
+        ]);
+
+        $this->postJson('/api/v1/payments/callback', [
+            'merchantCode' => self::MERCHANT_CODE,
+            'amount' => 100000,
+            'merchantOrderId' => $payment->merchant_order_id,
+            'resultCode' => '00',
+            'reference' => 'D999',
+            'signature' => $this->callbackSignature($payment->merchant_order_id, 100000),
+        ])->assertOk();
+
+        Notification::assertSentTo($account, CustomerPaymentReceived::class);
     }
 
     public function test_callback_does_not_require_authentication(): void

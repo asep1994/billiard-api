@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Notifications\Channels\FcmChannel;
 use App\Services\DuitkuService;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -24,6 +26,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Notification::extend('fcm', fn ($app) => $app->make(FcmChannel::class));
     }
 }

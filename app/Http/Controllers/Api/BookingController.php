@@ -14,6 +14,8 @@ use App\Models\BilliardTable;
 use App\Models\Booking;
 use App\Models\Promotion;
 use App\Models\User;
+use App\Notifications\Customer\BookingCancelled as CustomerBookingCancelled;
+use App\Notifications\Customer\BookingConfirmed as CustomerBookingConfirmed;
 use App\Notifications\NewBookingCreated;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -127,7 +129,11 @@ class BookingController extends Controller
         $wasCancelled = $booking->status !== BookingStatus::Cancelled
             && ($data['status'] ?? null) === BookingStatus::Cancelled->value;
 
+        $wasConfirmed = $booking->status !== BookingStatus::Confirmed
+            && ($data['status'] ?? null) === BookingStatus::Confirmed->value;
+
         $booking->update($data);
+        $booking->load(['venue', 'billiardTable', 'customer.customerAccount', 'user', 'promotion']);
 
         if ($wasCancelled) {
             ActivityLog::record(
@@ -137,9 +143,17 @@ class BookingController extends Controller
                 "{$request->user()->name} membatalkan booking BK-".str_pad((string) $booking->id, 4, '0', STR_PAD_LEFT),
                 $booking->vendor_id,
             );
+
+            if ($account = $booking->customer?->customerAccount) {
+                Notification::send($account, new CustomerBookingCancelled($booking));
+            }
         }
 
-        return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'user', 'promotion']));
+        if ($wasConfirmed && ($account = $booking->customer?->customerAccount)) {
+            Notification::send($account, new CustomerBookingConfirmed($booking));
+        }
+
+        return new BookingResource($booking);
     }
 
     /**

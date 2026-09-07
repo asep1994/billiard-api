@@ -6,11 +6,15 @@ use App\Enums\BookingStatus;
 use App\Models\BilliardTable;
 use App\Models\Booking;
 use App\Models\Customer;
+use App\Models\CustomerAccount;
 use App\Models\Promotion;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Venue;
+use App\Notifications\Customer\BookingCancelled as CustomerBookingCancelled;
+use App\Notifications\Customer\BookingConfirmed as CustomerBookingConfirmed;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -375,5 +379,92 @@ class BookingTest extends TestCase
         $this->putJson("/api/v1/bookings/{$booking->id}", ['status' => 'cancelled'])
             ->assertOk()
             ->assertJsonPath('data.status', BookingStatus::Cancelled->value);
+    }
+
+    public function test_confirming_a_booking_pushes_a_notification_to_the_customers_linked_account(): void
+    {
+        Notification::fake();
+
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVendorContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'status' => BookingStatus::Pending,
+        ]);
+
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->putJson("/api/v1/bookings/{$booking->id}", ['status' => 'confirmed'])->assertOk();
+
+        Notification::assertSentTo($account, CustomerBookingConfirmed::class);
+    }
+
+    public function test_cancelling_a_booking_pushes_a_notification_to_the_customers_linked_account(): void
+    {
+        Notification::fake();
+
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVendorContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->putJson("/api/v1/bookings/{$booking->id}", ['status' => 'cancelled'])->assertOk();
+
+        Notification::assertSentTo($account, CustomerBookingCancelled::class);
+    }
+
+    public function test_updating_a_booking_without_a_status_change_does_not_push_a_notification(): void
+    {
+        Notification::fake();
+
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVendorContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => '2027-01-01 10:00:00',
+            'end_time' => '2027-01-01 12:00:00',
+        ]);
+
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->putJson("/api/v1/bookings/{$booking->id}", ['end_time' => '2027-01-01 13:00:00'])->assertOk();
+
+        Notification::assertNothingSent();
+    }
+
+    public function test_walk_in_customers_without_a_linked_account_do_not_break_the_status_update(): void
+    {
+        Notification::fake();
+
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table, 'customer' => $customer] = $this->makeVendorContext();
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+        ]);
+
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->putJson("/api/v1/bookings/{$booking->id}", ['status' => 'confirmed'])
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Confirmed->value);
+
+        Notification::assertNothingSent();
     }
 }

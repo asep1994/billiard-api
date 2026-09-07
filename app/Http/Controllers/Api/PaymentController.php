@@ -14,6 +14,7 @@ use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\User;
+use App\Notifications\Customer\PaymentReceived as CustomerPaymentReceived;
 use App\Notifications\PaymentReceived;
 use App\Services\BookingPaymentService;
 use App\Services\DuitkuService;
@@ -125,6 +126,10 @@ class PaymentController extends Controller
             }
 
             Notification::send($recipients, new PaymentReceived($payment));
+
+            if ($account = $payment->booking->customer?->customerAccount) {
+                Notification::send($account, new CustomerPaymentReceived($payment));
+            }
         } else {
             $payment->update(['status' => PaymentGatewayStatus::Failed]);
         }
