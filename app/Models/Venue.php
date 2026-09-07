@@ -12,8 +12,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['vendor_id', 'name', 'slug', 'address', 'city', 'phone', 'opening_time', 'closing_time', 'status'])]
+#[Fillable(['vendor_id', 'name', 'slug', 'address', 'city', 'latitude', 'longitude', 'photo_path', 'phone', 'opening_time', 'closing_time', 'status'])]
 #[UseFactory(VenueFactory::class)]
 #[UsePolicy(VenuePolicy::class)]
 class Venue extends Model
@@ -31,6 +32,8 @@ class Venue extends Model
         return [
             'opening_time' => 'datetime:H:i',
             'closing_time' => 'datetime:H:i',
+            'latitude' => 'decimal:7',
+            'longitude' => 'decimal:7',
             'status' => Status::class,
         ];
     }
@@ -65,5 +68,18 @@ class Venue extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
+    }
+
+    /**
+     * @return HasMany<Favorite, $this>
+     */
+    public function favoritedBy(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    public function photoUrl(): ?string
+    {
+        return $this->photo_path ? Storage::disk('public')->url($this->photo_path) : null;
     }
 }

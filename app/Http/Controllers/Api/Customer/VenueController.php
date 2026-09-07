@@ -9,8 +9,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\BilliardTableResource;
 use App\Http\Resources\VenueResource;
 use App\Models\BilliardTable;
+use App\Models\CustomerAccount;
 use App\Models\Venue;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Date;
 
 /**
  * Public venue browsing for the customer app - no authentication required,
@@ -19,11 +23,18 @@ use Illuminate\Http\Request;
 class VenueController extends Controller
 {
     /**
-     * Display a listing of active venues.
+     * Display a listing of active venues. When `lat`/`lng` are given, results
+     * are sorted nearest-first and carry a `distance_km`; venues without
+     * coordinates are excluded from that sort since "nearest" is meaningless
+     * without a location to compare against.
      */
     public function index(Request $request)
     {
-        $venues = Venue::where('status', Status::Active)->with('vendor');
+        $venues = Venue::where('status', Status::Active)
+            ->with('vendor')
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->withMin('billiardTables as tables_min_hourly_rate', 'hourly_rate');
 
         if ($request->filled('city')) {
             $venues->where('city', 'like', '%'.$request->string('city').'%');
@@ -33,9 +44,69 @@ class VenueController extends Controller
             $venues->where('name', 'like', '%'.$request->string('search').'%');
         }
 
-        $perPage = min($request->integer('per_page', 15), 100);
+        if ($request->boolean('open_now')) {
+            $now = Date::now()->format('H:i:s');
+            $venues->whereNotNull('opening_time')
+                ->whereNotNull('closing_time')
+                ->whereTime('opening_time', '<=', $now)
+                ->whereTime('closing_time', '>=', $now);
+        }
 
-        return VenueResource::collection($venues->paginate($perPage));
+        if ($request->filled('lat') || $request->filled('lng')) {
+            $validated = $request->validate([
+                'lat' => ['required', 'numeric', 'between:-90,90'],
+                'lng' => ['required', 'numeric', 'between:-180,180'],
+            ]);
+
+            // Haversine distance in kilometres; least(1, ...) guards acos()
+            // against floating-point rounding pushing the input just past 1
+            // when the customer is (almost) exactly at the venue.
+            $venues->whereNotNull('latitude')
+                ->whereNotNull('longitude')
+                ->selectRaw('venues.*')
+                ->selectRaw(
+                    '(6371 * acos(least(1, cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude))))) as distance_km',
+                    [$validated['lat'], $validated['lng'], $validated['lat']]
+                )
+                ->orderBy('distance_km');
+        }
+
+        if ($request->query('sort') === 'rating') {
+            // Postgres defaults DESC order to NULLS FIRST, which would rank
+            // unreviewed venues above every rated one - pin nulls to the end.
+            $venues->orderByRaw('reviews_avg_rating DESC NULLS LAST');
+        }
+
+        $perPage = min($request->integer('per_page', 15), 100);
+        $paginated = $venues->paginate($perPage);
+        $this->attachFavoriteStatus(collect($paginated->items()));
+
+        return VenueResource::collection($paginated);
+    }
+
+    /**
+     * Mark each venue as favorited or not for the currently authenticated
+     * customer, if any. Browsing is public, so this is best-effort: guests
+     * simply see `is_favorited: false` on every venue.
+     *
+     * @param  Collection<int, Venue>  $venues
+     */
+    private function attachFavoriteStatus($venues): void
+    {
+        $customer = Auth::guard('sanctum')->user();
+
+        if (! $customer instanceof CustomerAccount || $venues->isEmpty()) {
+            return;
+        }
+
+        $favoritedVenueIds = $customer->favorites()
+            ->whereIn('venue_id', $venues->pluck('id'))
+            ->pluck('venue_id')
+            ->all();
+
+        foreach ($venues as $venue) {
+            $venue->setAttribute('is_favorited', in_array($venue->id, $favoritedVenueIds, true));
+        }
     }
 
     /**
@@ -45,9 +116,14 @@ class VenueController extends Controller
     {
         abort_unless($venue->status === Status::Active, 404);
 
-        return new VenueResource(
-            $venue->load(['vendor', 'billiardTables' => fn ($query) => $query->where('status', TableStatus::Available)])
-        );
+        $venue->load(['vendor', 'billiardTables' => fn ($query) => $query->where('status', TableStatus::Available)])
+            ->loadAvg('reviews', 'rating')
+            ->loadCount('reviews')
+            ->loadMin('billiardTables as tables_min_hourly_rate', 'hourly_rate');
+
+        $this->attachFavoriteStatus(collect([$venue]));
+
+        return new VenueResource($venue);
     }
 
     /**

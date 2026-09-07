@@ -35,6 +35,8 @@ class StoreVenueRequest extends FormRequest
             ],
             'address' => ['nullable', 'string'],
             'city' => ['nullable', 'string', 'max:255'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'phone' => ['nullable', 'string', 'max:30'],
             'opening_time' => ['nullable', 'date_format:H:i'],
             'closing_time' => ['nullable', 'date_format:H:i', 'after:opening_time'],

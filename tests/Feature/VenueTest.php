@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -150,5 +152,58 @@ class VenueTest extends TestCase
         Sanctum::actingAs(User::factory()->vendorAdmin()->create());
 
         $this->getJson("/api/v1/venues/{$venue->id}")->assertForbidden();
+    }
+
+    public function test_vendor_admin_can_upload_a_cover_photo_for_their_own_venue(): void
+    {
+        Storage::fake('public');
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $photo = UploadedFile::fake()->image('venue.jpg');
+
+        $response = $this->postJson("/api/v1/venues/{$venue->id}/photo", ['photo' => $photo]);
+
+        $response->assertOk();
+        Storage::disk('public')->assertExists($venue->refresh()->photo_path);
+        $this->assertNotNull($response->json('data.photo_url'));
+    }
+
+    public function test_uploading_a_new_photo_replaces_and_deletes_the_old_one(): void
+    {
+        Storage::fake('public');
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->postJson("/api/v1/venues/{$venue->id}/photo", ['photo' => UploadedFile::fake()->image('first.jpg')]);
+        $firstPath = $venue->refresh()->photo_path;
+
+        $this->postJson("/api/v1/venues/{$venue->id}/photo", ['photo' => UploadedFile::fake()->image('second.jpg')]);
+
+        Storage::disk('public')->assertMissing($firstPath);
+        Storage::disk('public')->assertExists($venue->refresh()->photo_path);
+    }
+
+    public function test_vendor_admin_cannot_upload_a_photo_for_another_vendors_venue(): void
+    {
+        Storage::fake('public');
+        $venue = Venue::factory()->create();
+        Sanctum::actingAs(User::factory()->vendorAdmin()->create());
+
+        $this->postJson("/api/v1/venues/{$venue->id}/photo", ['photo' => UploadedFile::fake()->image('venue.jpg')])
+            ->assertForbidden();
+    }
+
+    public function test_photo_upload_requires_an_image_file(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id]);
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->postJson("/api/v1/venues/{$venue->id}/photo", ['photo' => UploadedFile::fake()->create('doc.pdf', 10)])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('photo');
     }
 }

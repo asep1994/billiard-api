@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CommissionController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingController;
+use App\Http\Controllers\Api\Customer\FavoriteController as CustomerFavoriteController;
+use App\Http\Controllers\Api\Customer\PromotionController as CustomerPromotionController;
 use App\Http\Controllers\Api\Customer\VenueController as CustomerVenueController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\NotificationController;
@@ -29,6 +31,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::apiResource('vendors', VendorController::class);
         Route::apiResource('venues', VenueController::class);
+        Route::post('venues/{venue}/photo', [VenueController::class, 'uploadPhoto']);
         Route::get('venues/{venue}/available-tables', [BilliardTableController::class, 'available']);
         Route::apiResource('tables', BilliardTableController::class);
         Route::apiResource('customers', CustomerController::class);
@@ -57,6 +60,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/venues', [CustomerVenueController::class, 'index']);
         Route::get('/venues/{venue}', [CustomerVenueController::class, 'show']);
         Route::get('/venues/{venue}/available-tables', [CustomerVenueController::class, 'availableTables']);
+        Route::get('/promotions', [CustomerPromotionController::class, 'index']);
 
         Route::middleware(['auth:sanctum', 'customer.account'])->group(function (): void {
             Route::post('/logout', [CustomerAuthController::class, 'logout']);
@@ -66,6 +70,10 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/bookings', [CustomerBookingController::class, 'store']);
             Route::get('/bookings/{booking}', [CustomerBookingController::class, 'show']);
             Route::post('/bookings/{booking}/pay', [CustomerBookingController::class, 'pay']);
+
+            Route::get('/favorites', [CustomerFavoriteController::class, 'index']);
+            Route::post('/venues/{venue}/favorite', [CustomerFavoriteController::class, 'store']);
+            Route::delete('/venues/{venue}/favorite', [CustomerFavoriteController::class, 'destroy']);
         });
     });
 });

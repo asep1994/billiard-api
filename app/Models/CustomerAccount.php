@@ -45,4 +45,12 @@ class CustomerAccount extends Authenticatable
     {
         return $this->hasMany(Customer::class);
     }
+
+    /**
+     * @return HasMany<Favorite, $this>
+     */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
 }

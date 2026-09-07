@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreVenueRequest;
 use App\Http\Requests\UpdateVenueRequest;
+use App\Http\Requests\UploadVenuePhotoRequest;
 use App\Http\Resources\VenueResource;
 use App\Models\Venue;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 
 class VenueController extends Controller
 {
@@ -70,5 +72,23 @@ class VenueController extends Controller
         $venue->delete();
 
         return response()->noContent();
+    }
+
+    /**
+     * Upload (or replace) the venue's cover photo.
+     */
+    public function uploadPhoto(UploadVenuePhotoRequest $request, Venue $venue)
+    {
+        $this->authorize('update', $venue);
+
+        if ($venue->photo_path) {
+            Storage::disk('public')->delete($venue->photo_path);
+        }
+
+        $venue->update([
+            'photo_path' => $request->file('photo')->store('venues', 'public'),
+        ]);
+
+        return new VenueResource($venue);
     }
 }
