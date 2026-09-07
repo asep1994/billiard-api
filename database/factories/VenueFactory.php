@@ -20,14 +20,15 @@ class VenueFactory extends Factory
      */
     public function definition(): array
     {
-        $name = fake()->unique()->streetName().' Billiard';
+        $street = fake()->unique()->street();
+        $name = $street.' Billiard';
 
         return [
             'vendor_id' => Vendor::factory(),
             'name' => $name,
             'slug' => Str::slug($name),
-            'address' => fake()->address(),
-            'city' => fake()->city(),
+            'address' => 'Jl. '.$street.' No. '.fake()->buildingNumber().', Bandung',
+            'city' => 'Bandung',
             'phone' => fake()->phoneNumber(),
             'opening_time' => '10:00',
             'closing_time' => '23:00',
