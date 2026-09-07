@@ -206,4 +206,44 @@ class VenueTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('photo');
     }
+
+    public function test_vendor_admin_can_set_description_and_facilities_when_creating_a_venue(): void
+    {
+        $vendor = Vendor::factory()->create();
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $response = $this->postJson('/api/v1/venues', [
+            'name' => 'Downtown Hall',
+            'slug' => 'downtown-hall',
+            'description' => 'A cozy spot.',
+            'facilities' => ['parking', 'wifi'],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.description', 'A cozy spot.')
+            ->assertJsonPath('data.facilities', ['parking', 'wifi']);
+    }
+
+    public function test_venue_facilities_must_be_valid_values(): void
+    {
+        $vendor = Vendor::factory()->create();
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->postJson('/api/v1/venues', [
+            'name' => 'Downtown Hall',
+            'slug' => 'downtown-hall',
+            'facilities' => ['swimming_pool'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('facilities.0');
+    }
+
+    public function test_vendor_admin_can_update_description_and_facilities(): void
+    {
+        $vendor = Vendor::factory()->create();
+        $venue = Venue::factory()->create(['vendor_id' => $vendor->id, 'facilities' => ['wifi']]);
+        Sanctum::actingAs(User::factory()->vendorAdmin($vendor)->create());
+
+        $this->putJson("/api/v1/venues/{$venue->id}", ['facilities' => ['ac', 'food_drink']])
+            ->assertOk()
+            ->assertJsonPath('data.facilities', ['ac', 'food_drink']);
+    }
 }

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\Status;
+use App\Enums\VenueFacility;
 use App\Models\Vendor;
 use App\Models\Venue;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -37,6 +38,12 @@ class VenueFactory extends Factory
             'city' => 'Bandung',
             'latitude' => $latitude,
             'longitude' => $longitude,
+            'description' => 'Tempat billiard modern dengan suasana nyaman, meja berkualitas, dan fasilitas '.
+                'lengkap. Cocok untuk main bareng teman, komunitas, maupun event.',
+            'facilities' => fake()->randomElements(
+                array_column(VenueFacility::cases(), 'value'),
+                fake()->numberBetween(1, 4)
+            ),
             'phone' => fake()->phoneNumber(),
             'opening_time' => '10:00',
             'closing_time' => '23:00',

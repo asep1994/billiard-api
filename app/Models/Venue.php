@@ -14,7 +14,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['vendor_id', 'name', 'slug', 'address', 'city', 'latitude', 'longitude', 'photo_path', 'phone', 'opening_time', 'closing_time', 'status'])]
+#[Fillable([
+    'vendor_id', 'name', 'slug', 'address', 'city', 'latitude', 'longitude',
+    'photo_path', 'description', 'facilities', 'phone', 'opening_time', 'closing_time', 'status',
+])]
 #[UseFactory(VenueFactory::class)]
 #[UsePolicy(VenuePolicy::class)]
 class Venue extends Model
@@ -34,6 +37,7 @@ class Venue extends Model
             'closing_time' => 'datetime:H:i',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'facilities' => 'array',
             'status' => Status::class,
         ];
     }

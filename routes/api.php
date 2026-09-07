@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingController;
 use App\Http\Controllers\Api\Customer\FavoriteController as CustomerFavoriteController;
 use App\Http\Controllers\Api\Customer\PromotionController as CustomerPromotionController;
+use App\Http\Controllers\Api\Customer\ReviewController as CustomerReviewController;
 use App\Http\Controllers\Api\Customer\VenueController as CustomerVenueController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\NotificationController;
@@ -60,6 +61,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/venues', [CustomerVenueController::class, 'index']);
         Route::get('/venues/{venue}', [CustomerVenueController::class, 'show']);
         Route::get('/venues/{venue}/available-tables', [CustomerVenueController::class, 'availableTables']);
+        Route::get('/venues/{venue}/reviews', [CustomerReviewController::class, 'index']);
         Route::get('/promotions', [CustomerPromotionController::class, 'index']);
 
         Route::middleware(['auth:sanctum', 'customer.account'])->group(function (): void {

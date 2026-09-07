@@ -14,6 +14,7 @@ use App\Models\Vendor;
 use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -59,6 +60,33 @@ class CustomerBookingTest extends TestCase
             'phone' => '081234567890',
             'customer_account_id' => $account->id,
         ]);
+    }
+
+    public function test_utc_tagged_start_time_is_stored_as_the_correct_jakarta_wall_clock_hour(): void
+    {
+        // Regression: the Flutter app sends UTC-tagged ISO8601 instants
+        // (e.g. "...T06:00:00.000Z" for 13:00 WIB). Eloquent's `datetime`
+        // cast preserves whatever offset a value was parsed with instead of
+        // converting to config('app.timezone') on save, so an untouched
+        // value would land in the database as literal "06:00" instead of
+        // the intended 13:00 - StoreCustomerBookingRequest must normalize
+        // this before it reaches the model.
+        ['venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        Sanctum::actingAs(CustomerAccount::factory()->create());
+
+        // 2027-01-01T06:00:00Z is 13:00 WIB (UTC+7).
+        $response = $this->postJson('/api/v1/customer/bookings', [
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'start_time' => '2027-01-01T06:00:00.000Z',
+            'end_time' => '2027-01-01T08:00:00.000Z',
+        ]);
+
+        $response->assertCreated();
+
+        $booking = Booking::findOrFail($response->json('data.id'));
+        $this->assertSame('13:00:00', Carbon::parse($booking->getRawOriginal('start_time'))->format('H:i:s'));
+        $this->assertSame('15:00:00', Carbon::parse($booking->getRawOriginal('end_time'))->format('H:i:s'));
     }
 
     public function test_booking_reuses_the_same_per_vendor_customer_record_on_a_second_booking(): void

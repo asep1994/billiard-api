@@ -26,6 +26,8 @@ class VenueResource extends JsonResource
             'longitude' => $this->longitude !== null ? (float) $this->longitude : null,
             'distance_km' => $this->distance_km !== null ? round((float) $this->distance_km, 1) : null,
             'photo_url' => $this->photoUrl(),
+            'description' => $this->description,
+            'facilities' => $this->facilities ?? [],
             'rating' => $this->reviews_avg_rating !== null ? round((float) $this->reviews_avg_rating, 1) : null,
             'reviews_count' => $this->reviews_count !== null ? (int) $this->reviews_count : 0,
             'price_from' => $this->tables_min_hourly_rate !== null ? (float) $this->tables_min_hourly_rate : null,

@@ -9,6 +9,7 @@ use App\Models\Venue;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 class StoreCustomerBookingRequest extends FormRequest
@@ -19,6 +20,32 @@ class StoreCustomerBookingRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    /**
+     * Normalize start/end time to app-timezone wall-clock strings before
+     * validation. The Flutter app sends UTC-tagged ISO8601 instants (e.g.
+     * "2026-09-07T06:00:00.000Z"); Eloquent's `datetime` cast parses that
+     * offset correctly but then stores the Carbon object's own timezone
+     * representation as-is (it does not convert to `config('app.timezone')`
+     * on save), so an untouched UTC value would land in the database as
+     * literal "06:00" instead of the intended 13:00 WIB. Converting here,
+     * before the value ever reaches the model, keeps every write path
+     * (admin dashboard's already-local strings included) consistent.
+     */
+    protected function prepareForValidation(): void
+    {
+        $normalized = [];
+
+        foreach (['start_time', 'end_time'] as $field) {
+            if ($this->filled($field)) {
+                $normalized[$field] = Carbon::parse($this->input($field))
+                    ->setTimezone(config('app.timezone'))
+                    ->format('Y-m-d H:i:s');
+            }
+        }
+
+        $this->merge($normalized);
     }
 
     /**

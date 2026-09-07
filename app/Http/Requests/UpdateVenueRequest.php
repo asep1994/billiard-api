@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\Status;
+use App\Enums\VenueFacility;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -36,6 +37,9 @@ class UpdateVenueRequest extends FormRequest
             'city' => ['nullable', 'string', 'max:255'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'description' => ['nullable', 'string'],
+            'facilities' => ['nullable', 'array'],
+            'facilities.*' => [Rule::enum(VenueFacility::class)],
             'phone' => ['nullable', 'string', 'max:30'],
             'opening_time' => ['nullable', 'date_format:H:i'],
             'closing_time' => ['nullable', 'date_format:H:i', 'after:opening_time'],

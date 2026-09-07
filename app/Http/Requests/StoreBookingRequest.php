@@ -9,6 +9,7 @@ use App\Models\Promotion;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 class StoreBookingRequest extends FormRequest
@@ -19,6 +20,29 @@ class StoreBookingRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    /**
+     * Normalize start/end time to app-timezone wall-clock strings before
+     * validation - see StoreCustomerBookingRequest for why this matters:
+     * Eloquent's `datetime` cast preserves whatever offset a value was
+     * parsed with instead of converting to `config('app.timezone')` on
+     * save, so a UTC-tagged input would otherwise land in the database at
+     * the wrong wall-clock hour.
+     */
+    protected function prepareForValidation(): void
+    {
+        $normalized = [];
+
+        foreach (['start_time', 'end_time'] as $field) {
+            if ($this->filled($field)) {
+                $normalized[$field] = Carbon::parse($this->input($field))
+                    ->setTimezone(config('app.timezone'))
+                    ->format('Y-m-d H:i:s');
+            }
+        }
+
+        $this->merge($normalized);
     }
 
     /**
