@@ -53,4 +53,12 @@ class CustomerAccount extends Authenticatable
     {
         return $this->hasMany(Favorite::class);
     }
+
+    /**
+     * @return HasMany<CustomerDeviceToken, $this>
+     */
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(CustomerDeviceToken::class);
+    }
 }

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CommissionController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingController;
 use App\Http\Controllers\Api\Customer\ConfigController as CustomerConfigController;
+use App\Http\Controllers\Api\Customer\DeviceTokenController as CustomerDeviceTokenController;
 use App\Http\Controllers\Api\Customer\FavoriteController as CustomerFavoriteController;
 use App\Http\Controllers\Api\Customer\PromotionController as CustomerPromotionController;
 use App\Http\Controllers\Api\Customer\ReviewController as CustomerReviewController;
@@ -79,6 +80,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/favorites', [CustomerFavoriteController::class, 'index']);
             Route::post('/venues/{venue}/favorite', [CustomerFavoriteController::class, 'store']);
             Route::delete('/venues/{venue}/favorite', [CustomerFavoriteController::class, 'destroy']);
+
+            Route::post('/device-tokens', [CustomerDeviceTokenController::class, 'store']);
+            Route::delete('/device-tokens', [CustomerDeviceTokenController::class, 'destroy']);
         });
     });
 });
