@@ -60,6 +60,8 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('customer')->group(function (): void {
         Route::post('/register', [CustomerAuthController::class, 'register']);
         Route::post('/login', [CustomerAuthController::class, 'login']);
+        Route::post('/forgot-password', [CustomerAuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
+        Route::post('/reset-password', [CustomerAuthController::class, 'resetPassword'])->middleware('throttle:5,1');
 
         Route::get('/venues', [CustomerVenueController::class, 'index']);
         Route::get('/venues/{venue}', [CustomerVenueController::class, 'show']);

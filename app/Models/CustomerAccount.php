@@ -62,4 +62,12 @@ class CustomerAccount extends Authenticatable
     {
         return $this->hasMany(CustomerDeviceToken::class);
     }
+
+    /**
+     * @return HasMany<CustomerPasswordResetCode, $this>
+     */
+    public function passwordResetCodes(): HasMany
+    {
+        return $this->hasMany(CustomerPasswordResetCode::class);
+    }
 }
