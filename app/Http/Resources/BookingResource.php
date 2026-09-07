@@ -35,6 +35,7 @@ class BookingResource extends JsonResource
             'discount_amount' => $this->discount_amount,
             'service_fee' => $this->service_fee,
             'payable_amount' => $this->payableAmount(),
+            'review' => $this->whenLoaded('review', fn () => $this->review ? new CustomerReviewResource($this->review) : null),
             'notes' => $this->notes,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

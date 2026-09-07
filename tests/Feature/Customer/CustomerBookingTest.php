@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Customer;
 
+use App\Enums\BookingStatus;
 use App\Enums\PromotionType;
 use App\Enums\Status;
 use App\Enums\TableStatus;
@@ -10,6 +11,7 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\CustomerAccount;
 use App\Models\Promotion;
+use App\Models\Review;
 use App\Models\Vendor;
 use App\Models\Venue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -295,5 +297,119 @@ class CustomerBookingTest extends TestCase
         $this->postJson("/api/v1/customer/bookings/{$booking->id}/pay", [
             'payment_method' => 'VC',
         ])->assertForbidden();
+    }
+
+    private function makeBookingFor(CustomerAccount $account, BookingStatus $status): Booking
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+
+        return Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'status' => $status,
+        ]);
+    }
+
+    public function test_customer_can_review_their_own_completed_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Completed);
+        Sanctum::actingAs($account);
+
+        $response = $this->postJson("/api/v1/customer/bookings/{$booking->id}/review", [
+            'rating' => 5,
+            'comment' => 'Meja bagus, tempat bersih!',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.rating', 5)
+            ->assertJsonPath('data.comment', 'Meja bagus, tempat bersih!');
+
+        $this->assertDatabaseHas('reviews', [
+            'booking_id' => $booking->id,
+            'venue_id' => $booking->venue_id,
+            'rating' => 5,
+        ]);
+    }
+
+    public function test_customer_cannot_review_a_booking_that_is_not_completed(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Confirmed);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/review", ['rating' => 4])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseMissing('reviews', ['booking_id' => $booking->id]);
+    }
+
+    public function test_customer_cannot_review_the_same_booking_twice(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Completed);
+        Review::factory()->create(['booking_id' => $booking->id, 'venue_id' => $booking->venue_id, 'vendor_id' => $booking->vendor_id]);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/review", ['rating' => 4])
+            ->assertStatus(409);
+    }
+
+    public function test_customer_cannot_review_another_customers_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Completed);
+        Sanctum::actingAs(CustomerAccount::factory()->create());
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/review", ['rating' => 4])
+            ->assertForbidden();
+    }
+
+    public function test_guest_cannot_review_a_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Completed);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/review", ['rating' => 4])
+            ->assertUnauthorized();
+    }
+
+    public function test_review_rating_must_be_between_one_and_five(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Completed);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/review", ['rating' => 6])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('rating');
+    }
+
+    public function test_booking_show_exposes_the_customers_own_review(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Completed);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/review", ['rating' => 5, 'comment' => 'Top!']);
+
+        $this->getJson("/api/v1/customer/bookings/{$booking->id}")
+            ->assertOk()
+            ->assertJsonPath('data.review.rating', 5)
+            ->assertJsonPath('data.review.comment', 'Top!');
+    }
+
+    public function test_booking_show_has_a_null_review_when_none_left_yet(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Completed);
+        Sanctum::actingAs($account);
+
+        $this->getJson("/api/v1/customer/bookings/{$booking->id}")
+            ->assertOk()
+            ->assertJsonPath('data.review', null);
     }
 }

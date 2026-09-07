@@ -8,13 +8,16 @@ use App\Enums\PaymentStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Customer\StoreCustomerBookingRequest;
+use App\Http\Requests\Customer\StoreCustomerReviewRequest;
 use App\Http\Resources\BookingResource;
+use App\Http\Resources\CustomerReviewResource;
 use App\Http\Resources\PaymentResource;
 use App\Models\ActivityLog;
 use App\Models\BilliardTable;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Promotion;
+use App\Models\Review;
 use App\Models\User;
 use App\Models\Venue;
 use App\Notifications\NewBookingCreated;
@@ -37,7 +40,9 @@ class BookingController extends Controller
         $perPage = min($request->integer('per_page', 15), 100);
 
         return BookingResource::collection(
-            $bookings->with(['venue', 'billiardTable', 'customer', 'promotion'])->latest('start_time')->paginate($perPage)
+            $bookings->with(['venue', 'billiardTable', 'customer', 'promotion', 'review'])
+                ->latest('start_time')
+                ->paginate($perPage)
         );
     }
 
@@ -117,7 +122,7 @@ class BookingController extends Controller
     {
         $this->authorizeOwnBooking($request, $booking);
 
-        return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'promotion']));
+        return new BookingResource($booking->load(['venue', 'billiardTable', 'customer', 'promotion', 'review']));
     }
 
     /**
@@ -144,6 +149,39 @@ class BookingController extends Controller
                 ->response()
                 ->setStatusCode(Response::HTTP_CREATED),
         };
+    }
+
+    /**
+     * Leave a review for one of the customer's own completed bookings - one
+     * review per booking, enforced both here (friendly error) and by the
+     * reviews table's unique constraint on booking_id (last line of defense).
+     */
+    public function review(StoreCustomerReviewRequest $request, Booking $booking)
+    {
+        $this->authorizeOwnBooking($request, $booking);
+
+        if ($booking->status !== BookingStatus::Completed) {
+            return response()->json([
+                'message' => 'Only completed bookings can be reviewed.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (Review::where('booking_id', $booking->id)->exists()) {
+            return response()->json([
+                'message' => 'This booking has already been reviewed.',
+            ], Response::HTTP_CONFLICT);
+        }
+
+        $review = Review::create([
+            'vendor_id' => $booking->vendor_id,
+            'venue_id' => $booking->venue_id,
+            'booking_id' => $booking->id,
+            'customer_id' => $booking->customer_id,
+            'rating' => $request->validated('rating'),
+            'comment' => $request->validated('comment'),
+        ]);
+
+        return (new CustomerReviewResource($review))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
     private function authorizeOwnBooking(Request $request, Booking $booking): void

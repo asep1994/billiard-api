@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'vendor_id',
@@ -110,6 +111,14 @@ class Booking extends Model
     public function promotion(): BelongsTo
     {
         return $this->belongsTo(Promotion::class);
+    }
+
+    /**
+     * @return HasOne<Review, $this>
+     */
+    public function review(): HasOne
+    {
+        return $this->hasOne(Review::class);
     }
 
     /**
