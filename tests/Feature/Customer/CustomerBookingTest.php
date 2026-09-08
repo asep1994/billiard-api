@@ -10,6 +10,7 @@ use App\Models\BilliardTable;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\CustomerAccount;
+use App\Models\Payment;
 use App\Models\Promotion;
 use App\Models\Review;
 use App\Models\Vendor;
@@ -297,6 +298,96 @@ class CustomerBookingTest extends TestCase
         $this->postJson("/api/v1/customer/bookings/{$booking->id}/pay", [
             'payment_method' => 'VC',
         ])->assertForbidden();
+    }
+
+    public function test_refreshing_payment_marks_the_booking_as_paid_when_duitku_reports_success(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+        ]);
+        $payment = Payment::factory()->create(['booking_id' => $booking->id, 'amount' => 100000]);
+
+        Http::fake([
+            'sandbox.duitku.com/*' => Http::response([
+                'merchantOrderId' => $payment->merchant_order_id,
+                'reference' => 'D999',
+                'amount' => '100000',
+                'statusCode' => '00',
+                'statusMessage' => 'SUCCESS',
+            ]),
+        ]);
+
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/refresh-payment")
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'paid');
+
+        $this->assertSame('paid', $payment->fresh()->status->value);
+        Http::assertSent(fn (ClientRequest $request) => str_contains($request->url(), 'transactionStatus'));
+    }
+
+    public function test_refreshing_payment_leaves_the_booking_unpaid_when_duitku_still_reports_pending(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+        ]);
+        $payment = Payment::factory()->create(['booking_id' => $booking->id]);
+
+        Http::fake([
+            'sandbox.duitku.com/*' => Http::response([
+                'merchantOrderId' => $payment->merchant_order_id,
+                'statusCode' => '01',
+                'statusMessage' => 'PENDING',
+            ]),
+        ]);
+
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/refresh-payment")
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'unpaid');
+
+        $this->assertSame('pending', $payment->fresh()->status->value);
+    }
+
+    public function test_refresh_payment_returns_not_found_when_the_booking_has_no_payment(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeBookingFor($account, BookingStatus::Pending);
+
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/refresh-payment")->assertNotFound();
+    }
+
+    public function test_customer_cannot_refresh_payment_for_another_customers_booking(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        $otherCustomer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => CustomerAccount::factory()]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $otherCustomer->id,
+        ]);
+        Payment::factory()->create(['booking_id' => $booking->id]);
+
+        Sanctum::actingAs(CustomerAccount::factory()->create());
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/refresh-payment")->assertForbidden();
     }
 
     private function makeBookingFor(CustomerAccount $account, BookingStatus $status): Booking

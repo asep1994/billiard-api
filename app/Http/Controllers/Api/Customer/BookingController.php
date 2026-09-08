@@ -152,6 +152,25 @@ class BookingController extends Controller
     }
 
     /**
+     * Actively re-check a booking's payment status with Duitku rather than
+     * waiting for their webhook - the webhook can't reach a callback URL on
+     * localhost, so this is what the app calls after the in-app payment
+     * WebView returns, to find out whether the payment actually went through.
+     */
+    public function refreshPayment(Request $request, Booking $booking, BookingPaymentService $paymentService)
+    {
+        $this->authorizeOwnBooking($request, $booking);
+
+        $payment = $booking->payments()->latest()->first();
+
+        abort_if(! $payment, Response::HTTP_NOT_FOUND, 'No payment found for this booking.');
+
+        $paymentService->refreshStatus($payment);
+
+        return new BookingResource($booking->fresh()->load(['venue', 'billiardTable', 'customer', 'promotion', 'review']));
+    }
+
+    /**
      * Leave a review for one of the customer's own completed bookings - one
      * review per booking, enforced both here (friendly error) and by the
      * reviews table's unique constraint on booking_id (last line of defense).

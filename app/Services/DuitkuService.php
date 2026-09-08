@@ -13,6 +13,8 @@ class DuitkuService
 
     private const INQUIRY_PATH = '/webapi/api/merchant/v2/inquiry';
 
+    private const STATUS_PATH = '/webapi/api/merchant/transactionStatus';
+
     public function __construct(
         private readonly string $merchantCode,
         private readonly string $apiKey,
@@ -74,6 +76,33 @@ class DuitkuService
         $expected = md5($this->merchantCode.$amount.$merchantOrderId.$this->apiKey);
 
         return hash_equals($expected, $signature);
+    }
+
+    /**
+     * Actively ask Duitku for a transaction's current status, rather than
+     * waiting for their webhook to call our callback URL - the webhook can't
+     * reach a callback URL on localhost, which is otherwise a dead end for
+     * completing a payment in local development.
+     *
+     * Formula per Duitku API v2: MD5(merchantCode + merchantOrderId + apiKey).
+     *
+     * @return array<string, mixed> the decoded Duitku response (statusCode, statusMessage, reference, amount, ...)
+     */
+    public function checkTransactionStatus(string $merchantOrderId): array
+    {
+        $signature = md5($this->merchantCode.$merchantOrderId.$this->apiKey);
+
+        $response = Http::baseUrl($this->baseUrl())->post(self::STATUS_PATH, [
+            'merchantCode' => $this->merchantCode,
+            'merchantOrderId' => $merchantOrderId,
+            'signature' => $signature,
+        ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException("Duitku check status request failed: {$response->status()} {$response->body()}");
+        }
+
+        return $response->json();
     }
 
     private function baseUrl(): string

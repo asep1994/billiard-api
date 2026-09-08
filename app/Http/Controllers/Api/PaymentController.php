@@ -2,25 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\ActivityAction;
 use App\Enums\PaymentGatewayStatus;
-use App\Enums\PaymentStatus;
-use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DuitkuCallbackRequest;
 use App\Http\Requests\InitiatePaymentRequest;
 use App\Http\Resources\PaymentResource;
-use App\Models\ActivityLog;
 use App\Models\Booking;
 use App\Models\Payment;
-use App\Models\User;
-use App\Notifications\Customer\PaymentReceived as CustomerPaymentReceived;
-use App\Notifications\PaymentReceived;
 use App\Services\BookingPaymentService;
 use App\Services\DuitkuService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Notification;
 
 class PaymentController extends Controller
 {
@@ -65,7 +57,7 @@ class PaymentController extends Controller
     /**
      * Handle Duitku's payment notification callback.
      */
-    public function callback(DuitkuCallbackRequest $request, DuitkuService $duitku)
+    public function callback(DuitkuCallbackRequest $request, DuitkuService $duitku, BookingPaymentService $paymentService)
     {
         $data = $request->validated();
 
@@ -90,46 +82,7 @@ class PaymentController extends Controller
         }
 
         if ($data['resultCode'] === '00') {
-            $commissionRate = (float) $payment->booking->vendor->commission_rate;
-            $commissionAmount = round((float) $payment->amount * $commissionRate / 100, 2);
-            $vendorPayoutAmount = round((float) $payment->amount - $commissionAmount, 2);
-
-            $payment->update([
-                'status' => PaymentGatewayStatus::Paid,
-                'duitku_reference' => $data['reference'] ?? $payment->duitku_reference,
-                'payment_method' => $data['paymentCode'] ?? $payment->payment_method,
-                'paid_at' => now(),
-                'commission_amount' => $commissionAmount,
-                'vendor_payout_amount' => $vendorPayoutAmount,
-            ]);
-
-            $payment->booking->update(['payment_status' => PaymentStatus::Paid]);
-
-            ActivityLog::record(
-                ActivityAction::Paid,
-                'booking',
-                $payment->booking_id,
-                'Pembayaran BK-'.str_pad((string) $payment->booking_id, 4, '0', STR_PAD_LEFT)." diterima ({$payment->payment_method})",
-                $payment->booking->vendor_id,
-            );
-
-            $recipients = User::where('vendor_id', $payment->booking->vendor_id)
-                ->where('role', UserRole::VendorAdmin)
-                ->get();
-
-            if ($payment->booking->user_id) {
-                $creator = User::find($payment->booking->user_id);
-
-                if ($creator && ! $recipients->contains('id', $creator->id)) {
-                    $recipients->push($creator);
-                }
-            }
-
-            Notification::send($recipients, new PaymentReceived($payment));
-
-            if ($account = $payment->booking->customer?->customerAccount) {
-                Notification::send($account, new CustomerPaymentReceived($payment));
-            }
+            $paymentService->markAsPaid($payment, $data['reference'] ?? null, $data['paymentCode'] ?? null);
         } else {
             $payment->update(['status' => PaymentGatewayStatus::Failed]);
         }

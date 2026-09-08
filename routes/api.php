@@ -78,6 +78,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/bookings', [CustomerBookingController::class, 'store']);
             Route::get('/bookings/{booking}', [CustomerBookingController::class, 'show']);
             Route::post('/bookings/{booking}/pay', [CustomerBookingController::class, 'pay']);
+            Route::post('/bookings/{booking}/refresh-payment', [CustomerBookingController::class, 'refreshPayment']);
             Route::post('/bookings/{booking}/review', [CustomerBookingController::class, 'review']);
 
             Route::get('/favorites', [CustomerFavoriteController::class, 'index']);
