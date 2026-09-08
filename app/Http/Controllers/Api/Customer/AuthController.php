@@ -42,15 +42,15 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
-            'phone' => ['required', 'string'],
+            'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
 
-        $account = CustomerAccount::where('phone', $credentials['phone'])->first();
+        $account = CustomerAccount::where('email', $credentials['email'])->first();
 
         if (! $account || ! Hash::check($credentials['password'], $account->password)) {
             throw ValidationException::withMessages([
-                'phone' => ['The provided credentials are incorrect.'],
+                'email' => ['The provided credentials are incorrect.'],
             ]);
         }
 
@@ -82,22 +82,13 @@ class AuthController extends Controller
 
     /**
      * Email a one-time code the customer can use to reset their password.
-     * Only accounts with an email on file can self-service a reset - phone
-     * is the login identifier but we have no SMS/WA gateway to deliver a
-     * code there.
      */
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
     {
-        $account = CustomerAccount::where('phone', $request->validated('phone'))->first();
+        $account = CustomerAccount::where('email', $request->validated('email'))->first();
 
         if (! $account) {
-            return response()->json(['message' => 'Nomor HP tidak terdaftar.'], Response::HTTP_NOT_FOUND);
-        }
-
-        if (! $account->email) {
-            return response()->json([
-                'message' => 'Akun ini belum punya email terdaftar. Hubungi admin untuk reset password.',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response()->json(['message' => 'Email tidak terdaftar.'], Response::HTTP_NOT_FOUND);
         }
 
         $code = (string) random_int(100000, 999999);
@@ -110,20 +101,20 @@ class AuthController extends Controller
         Notification::send($account, new PasswordResetCodeNotification($code));
 
         return response()->json([
-            'message' => 'Kode reset password telah dikirim ke email yang terdaftar.',
+            'message' => 'Kode reset password telah dikirim ke email kamu.',
         ]);
     }
 
     /**
-     * Reset the password for the account matching the given phone number,
-     * provided a still-valid code sent via forgotPassword() is supplied.
+     * Reset the password for the account matching the given email, provided
+     * a still-valid code sent via forgotPassword() is supplied.
      */
     public function resetPassword(ResetPasswordRequest $request): JsonResponse
     {
-        $account = CustomerAccount::where('phone', $request->validated('phone'))->first();
+        $account = CustomerAccount::where('email', $request->validated('email'))->first();
 
         if (! $account) {
-            throw ValidationException::withMessages(['phone' => ['Nomor HP tidak terdaftar.']]);
+            throw ValidationException::withMessages(['email' => ['Email tidak terdaftar.']]);
         }
 
         $resetCode = $account->passwordResetCodes()

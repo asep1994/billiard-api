@@ -23,30 +23,41 @@ class CustomerAuthTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('customer.phone', '081234567890')
-            ->assertJsonStructure(['customer' => ['id', 'name', 'phone'], 'token']);
+            ->assertJsonPath('customer.email', 'budi@example.test')
+            ->assertJsonStructure(['customer' => ['id', 'name', 'phone', 'email'], 'token']);
 
-        $this->assertDatabaseHas('customer_accounts', ['phone' => '081234567890']);
+        $this->assertDatabaseHas('customer_accounts', ['email' => 'budi@example.test']);
     }
 
-    public function test_customer_cannot_register_with_a_duplicate_phone(): void
+    public function test_customer_cannot_register_without_an_email(): void
     {
-        CustomerAccount::factory()->create(['phone' => '081234567890']);
-
         $this->postJson('/api/v1/customer/register', [
             'name' => 'Budi Santoso',
             'phone' => '081234567890',
             'password' => 'password123',
             'password_confirmation' => 'password123',
-        ])->assertUnprocessable()->assertJsonValidationErrors('phone');
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
+    }
+
+    public function test_customer_cannot_register_with_a_duplicate_email(): void
+    {
+        CustomerAccount::factory()->create(['email' => 'budi@example.test']);
+
+        $this->postJson('/api/v1/customer/register', [
+            'name' => 'Budi Santoso',
+            'phone' => '081234567890',
+            'email' => 'budi@example.test',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
     }
 
     public function test_customer_can_login_with_correct_credentials(): void
     {
-        CustomerAccount::factory()->create(['phone' => '081234567890']);
+        CustomerAccount::factory()->create(['email' => 'budi@example.test']);
 
         $response = $this->postJson('/api/v1/customer/login', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'password' => 'password',
         ]);
 
@@ -55,12 +66,12 @@ class CustomerAuthTest extends TestCase
 
     public function test_customer_login_fails_with_wrong_password(): void
     {
-        CustomerAccount::factory()->create(['phone' => '081234567890']);
+        CustomerAccount::factory()->create(['email' => 'budi@example.test']);
 
         $this->postJson('/api/v1/customer/login', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'password' => 'wrong-password',
-        ])->assertUnprocessable()->assertJsonValidationErrors('phone');
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
     }
 
     public function test_authenticated_customer_can_view_their_own_profile(): void

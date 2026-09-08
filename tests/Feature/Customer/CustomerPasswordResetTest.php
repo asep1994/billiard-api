@@ -14,34 +14,22 @@ class CustomerPasswordResetTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_a_customer_with_an_email_receives_a_reset_code(): void
+    public function test_a_customer_receives_a_reset_code_by_email(): void
     {
         Notification::fake();
 
-        $account = CustomerAccount::factory()->create(['phone' => '081234567890', 'email' => 'budi@example.test']);
+        $account = CustomerAccount::factory()->create(['email' => 'budi@example.test']);
 
-        $this->postJson('/api/v1/customer/forgot-password', ['phone' => '081234567890'])
+        $this->postJson('/api/v1/customer/forgot-password', ['email' => 'budi@example.test'])
             ->assertOk();
 
         Notification::assertSentTo($account, PasswordResetCodeNotification::class);
         $this->assertSame(1, $account->passwordResetCodes()->count());
     }
 
-    public function test_a_customer_without_an_email_cannot_request_a_reset_code(): void
+    public function test_an_unregistered_email_is_rejected(): void
     {
-        Notification::fake();
-
-        CustomerAccount::factory()->create(['phone' => '081234567890', 'email' => null]);
-
-        $this->postJson('/api/v1/customer/forgot-password', ['phone' => '081234567890'])
-            ->assertUnprocessable();
-
-        Notification::assertNothingSent();
-    }
-
-    public function test_an_unregistered_phone_number_is_rejected(): void
-    {
-        $this->postJson('/api/v1/customer/forgot-password', ['phone' => '089999999999'])
+        $this->postJson('/api/v1/customer/forgot-password', ['email' => 'nobody@example.test'])
             ->assertNotFound();
     }
 
@@ -49,9 +37,9 @@ class CustomerPasswordResetTest extends TestCase
     {
         Notification::fake();
 
-        $account = CustomerAccount::factory()->create(['phone' => '081234567890', 'email' => 'budi@example.test']);
+        $account = CustomerAccount::factory()->create(['email' => 'budi@example.test']);
 
-        $this->postJson('/api/v1/customer/forgot-password', ['phone' => '081234567890']);
+        $this->postJson('/api/v1/customer/forgot-password', ['email' => 'budi@example.test']);
 
         $code = null;
         Notification::assertSentTo($account, PasswordResetCodeNotification::class, function ($notification) use (&$code) {
@@ -61,7 +49,7 @@ class CustomerPasswordResetTest extends TestCase
         });
 
         $this->postJson('/api/v1/customer/reset-password', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'code' => $code,
             'password' => 'new-password123',
             'password_confirmation' => 'new-password123',
@@ -74,8 +62,8 @@ class CustomerPasswordResetTest extends TestCase
     {
         Notification::fake();
 
-        $account = CustomerAccount::factory()->create(['phone' => '081234567890', 'email' => 'budi@example.test']);
-        $this->postJson('/api/v1/customer/forgot-password', ['phone' => '081234567890']);
+        $account = CustomerAccount::factory()->create(['email' => 'budi@example.test']);
+        $this->postJson('/api/v1/customer/forgot-password', ['email' => 'budi@example.test']);
 
         $code = null;
         Notification::assertSentTo($account, PasswordResetCodeNotification::class, function ($notification) use (&$code) {
@@ -85,14 +73,14 @@ class CustomerPasswordResetTest extends TestCase
         });
 
         $this->postJson('/api/v1/customer/reset-password', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'code' => $code,
             'password' => 'new-password123',
             'password_confirmation' => 'new-password123',
         ])->assertOk();
 
         $this->postJson('/api/v1/customer/reset-password', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'code' => $code,
             'password' => 'another-password123',
             'password_confirmation' => 'another-password123',
@@ -101,7 +89,7 @@ class CustomerPasswordResetTest extends TestCase
 
     public function test_an_expired_code_is_rejected(): void
     {
-        $account = CustomerAccount::factory()->create(['phone' => '081234567890', 'email' => 'budi@example.test']);
+        $account = CustomerAccount::factory()->create(['email' => 'budi@example.test']);
         CustomerPasswordResetCode::create([
             'customer_account_id' => $account->id,
             'code' => Hash::make('123456'),
@@ -109,7 +97,7 @@ class CustomerPasswordResetTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/customer/reset-password', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'code' => '123456',
             'password' => 'new-password123',
             'password_confirmation' => 'new-password123',
@@ -118,7 +106,7 @@ class CustomerPasswordResetTest extends TestCase
 
     public function test_a_wrong_code_is_rejected(): void
     {
-        $account = CustomerAccount::factory()->create(['phone' => '081234567890', 'email' => 'budi@example.test']);
+        $account = CustomerAccount::factory()->create(['email' => 'budi@example.test']);
         CustomerPasswordResetCode::create([
             'customer_account_id' => $account->id,
             'code' => Hash::make('123456'),
@@ -126,7 +114,7 @@ class CustomerPasswordResetTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/customer/reset-password', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'code' => '654321',
             'password' => 'new-password123',
             'password_confirmation' => 'new-password123',
@@ -135,7 +123,7 @@ class CustomerPasswordResetTest extends TestCase
 
     public function test_resetting_the_password_revokes_existing_tokens(): void
     {
-        $account = CustomerAccount::factory()->create(['phone' => '081234567890', 'email' => 'budi@example.test']);
+        $account = CustomerAccount::factory()->create(['email' => 'budi@example.test']);
         $account->createToken('customer-app');
         CustomerPasswordResetCode::create([
             'customer_account_id' => $account->id,
@@ -144,7 +132,7 @@ class CustomerPasswordResetTest extends TestCase
         ]);
 
         $this->postJson('/api/v1/customer/reset-password', [
-            'phone' => '081234567890',
+            'email' => 'budi@example.test',
             'code' => '123456',
             'password' => 'new-password123',
             'password_confirmation' => 'new-password123',

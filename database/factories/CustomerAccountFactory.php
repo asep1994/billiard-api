@@ -26,7 +26,7 @@ class CustomerAccountFactory extends Factory
         return [
             'name' => fake()->name(),
             'phone' => fake()->unique()->numerify('08##########'),
-            'email' => fake()->optional()->safeEmail(),
+            'email' => fake()->unique()->safeEmail(),
             'password' => static::$password ??= Hash::make('password'),
         ];
     }

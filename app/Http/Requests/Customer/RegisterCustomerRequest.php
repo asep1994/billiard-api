@@ -26,7 +26,7 @@ class RegisterCustomerRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:20', 'unique:customer_accounts,phone'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:customer_accounts,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:customer_accounts,email'],
             'password' => ['required', 'confirmed', Password::defaults()],
         ];
     }
