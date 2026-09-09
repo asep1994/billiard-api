@@ -45,7 +45,7 @@ class BookingController extends Controller
         $perPage = min($request->integer('per_page', 15), 100);
 
         return BookingResource::collection(
-            $bookings->with(['venue', 'billiardTable', 'customer', 'promotion'])->latest('start_time')->paginate($perPage)
+            $bookings->with(['venue', 'billiardTable', 'customer', 'promotion'])->latest()->paginate($perPage)
         );
     }
 
