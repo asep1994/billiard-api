@@ -2,10 +2,12 @@
 
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\BilliardTableController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CommissionController;
 use App\Http\Controllers\Api\Customer\AuthController as CustomerAuthController;
+use App\Http\Controllers\Api\Customer\BannerController as CustomerBannerController;
 use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingController;
 use App\Http\Controllers\Api\Customer\ConfigController as CustomerConfigController;
 use App\Http\Controllers\Api\Customer\DeviceTokenController as CustomerDeviceTokenController;
@@ -33,6 +35,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
 
+        Route::apiResource('banners', BannerController::class);
         Route::apiResource('vendors', VendorController::class);
         Route::apiResource('venues', VenueController::class);
         Route::post('venues/{venue}/photo', [VenueController::class, 'uploadPhoto']);
@@ -64,6 +67,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/forgot-password', [CustomerAuthController::class, 'forgotPassword'])->middleware('throttle:5,1');
         Route::post('/reset-password', [CustomerAuthController::class, 'resetPassword'])->middleware('throttle:5,1');
 
+        Route::get('/banners', [CustomerBannerController::class, 'index']);
         Route::get('/venues', [CustomerVenueController::class, 'index']);
         Route::get('/venues/{venue}', [CustomerVenueController::class, 'show']);
         Route::get('/venues/{venue}/available-tables', [CustomerVenueController::class, 'availableTables']);
