@@ -40,6 +40,7 @@ Route::prefix('v1')->group(function (): void {
         Route::apiResource('tables', BilliardTableController::class);
         Route::apiResource('customers', CustomerController::class);
         Route::apiResource('bookings', BookingController::class);
+        Route::post('bookings/send-reminders', [BookingController::class, 'sendReminders']);
         Route::post('bookings/{booking}/pay', [PaymentController::class, 'initiate']);
         Route::get('payments', [PaymentController::class, 'index']);
         Route::apiResource('promotions', PromotionController::class);

@@ -13,6 +13,7 @@ use App\Models\Vendor;
 use App\Models\Venue;
 use App\Notifications\Customer\BookingCancelled as CustomerBookingCancelled;
 use App\Notifications\Customer\BookingConfirmed as CustomerBookingConfirmed;
+use App\Notifications\Customer\BookingReminder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
@@ -466,5 +467,66 @@ class BookingTest extends TestCase
             ->assertJsonPath('data.status', BookingStatus::Confirmed->value);
 
         Notification::assertNothingSent();
+    }
+
+    public function test_staff_can_trigger_reminders_scoped_to_their_own_vendor(): void
+    {
+        Notification::fake();
+
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVendorContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => now()->addMinutes(20),
+            'end_time' => now()->addMinutes(80),
+        ]);
+
+        ['vendor' => $otherVendor, 'venue' => $otherVenue, 'table' => $otherTable] = $this->makeVendorContext();
+        $otherAccount = CustomerAccount::factory()->create();
+        $otherCustomer = Customer::factory()->create(['vendor_id' => $otherVendor->id, 'customer_account_id' => $otherAccount->id]);
+        Booking::factory()->create([
+            'vendor_id' => $otherVendor->id,
+            'venue_id' => $otherVenue->id,
+            'billiard_table_id' => $otherTable->id,
+            'customer_id' => $otherCustomer->id,
+            'start_time' => now()->addMinutes(20),
+            'end_time' => now()->addMinutes(80),
+        ]);
+
+        Sanctum::actingAs(User::factory()->staff($vendor)->create());
+
+        $this->postJson('/api/v1/bookings/send-reminders')
+            ->assertOk()
+            ->assertJsonPath('sent', 2);
+
+        Notification::assertSentTo($account, BookingReminder::class);
+        Notification::assertNotSentTo($otherAccount, BookingReminder::class);
+    }
+
+    public function test_super_admin_can_scope_reminders_to_a_specific_vendor(): void
+    {
+        Notification::fake();
+
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVendorContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'start_time' => now()->addMinutes(20),
+            'end_time' => now()->addMinutes(80),
+        ]);
+
+        Sanctum::actingAs(User::factory()->superAdmin()->create());
+
+        $this->postJson('/api/v1/bookings/send-reminders', ['vendor_id' => $vendor->id])
+            ->assertOk()
+            ->assertJsonPath('sent', 2);
     }
 }

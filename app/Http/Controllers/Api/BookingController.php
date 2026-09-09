@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Notifications\Customer\BookingCancelled as CustomerBookingCancelled;
 use App\Notifications\Customer\BookingConfirmed as CustomerBookingConfirmed;
 use App\Notifications\NewBookingCreated;
+use App\Services\BookingReminderService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Notification;
@@ -154,6 +155,20 @@ class BookingController extends Controller
         }
 
         return new BookingResource($booking);
+    }
+
+    /**
+     * Manually trigger the "pay up" / "come play" reminder check for the
+     * requesting admin's own vendor (or a specific venue of theirs), rather
+     * than waiting on a scheduler.
+     */
+    public function sendReminders(Request $request, BookingReminderService $reminders)
+    {
+        $vendorId = $request->user()->isSuperAdmin() ? $request->integer('vendor_id') ?: null : $request->user()->vendor_id;
+
+        $sent = $reminders->sendDueReminders($vendorId, $request->integer('venue_id') ?: null);
+
+        return response()->json(['sent' => $sent]);
     }
 
     /**
