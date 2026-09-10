@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Customer\ForgotPasswordRequest;
 use App\Http\Requests\Customer\RegisterCustomerRequest;
 use App\Http\Requests\Customer\ResetPasswordRequest;
+use App\Http\Requests\Customer\UpdateCustomerProfileRequest;
 use App\Http\Resources\CustomerAccountResource;
 use App\Models\CustomerAccount;
 use App\Models\CustomerPasswordResetCode;
@@ -78,6 +79,27 @@ class AuthController extends Controller
     public function me(Request $request): CustomerAccountResource
     {
         return new CustomerAccountResource($request->user());
+    }
+
+    /**
+     * Update the authenticated customer's own name/email/phone, and
+     * optionally their password (requires the current password to match).
+     */
+    public function updateProfile(UpdateCustomerProfileRequest $request): CustomerAccountResource
+    {
+        $account = $request->user();
+        $data = $request->validated();
+
+        if (! empty($data['password'])) {
+            $account->password = Hash::make($data['password']);
+        }
+
+        $account->name = $data['name'];
+        $account->email = $data['email'];
+        $account->phone = $data['phone'];
+        $account->save();
+
+        return new CustomerAccountResource($account);
     }
 
     /**

@@ -13,12 +13,15 @@ use App\Models\CustomerAccount;
 use App\Models\Payment;
 use App\Models\Promotion;
 use App\Models\Review;
+use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Venue;
+use App\Notifications\BookingCancelledByCustomer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -502,5 +505,114 @@ class CustomerBookingTest extends TestCase
         $this->getJson("/api/v1/customer/bookings/{$booking->id}")
             ->assertOk()
             ->assertJsonPath('data.review', null);
+    }
+
+    private function makeUpcomingBookingFor(CustomerAccount $account, BookingStatus $status): Booking
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+
+        return Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'status' => $status,
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDay()->addHour(),
+        ]);
+    }
+
+    public function test_customer_can_cancel_their_own_pending_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeUpcomingBookingFor($account, BookingStatus::Pending);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Cancelled->value);
+    }
+
+    public function test_customer_can_cancel_their_own_confirmed_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeUpcomingBookingFor($account, BookingStatus::Confirmed);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Cancelled->value);
+    }
+
+    public function test_customer_cannot_cancel_an_already_cancelled_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeUpcomingBookingFor($account, BookingStatus::Cancelled);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")->assertUnprocessable();
+    }
+
+    public function test_customer_cannot_cancel_a_completed_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeUpcomingBookingFor($account, BookingStatus::Completed);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")->assertUnprocessable();
+    }
+
+    public function test_customer_cannot_cancel_a_booking_that_already_started(): void
+    {
+        ['vendor' => $vendor, 'venue' => $venue, 'table' => $table] = $this->makeVenueContext();
+        $account = CustomerAccount::factory()->create();
+        $customer = Customer::factory()->create(['vendor_id' => $vendor->id, 'customer_account_id' => $account->id]);
+        $booking = Booking::factory()->create([
+            'vendor_id' => $vendor->id,
+            'venue_id' => $venue->id,
+            'billiard_table_id' => $table->id,
+            'customer_id' => $customer->id,
+            'status' => BookingStatus::Confirmed,
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+        ]);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")->assertUnprocessable();
+
+        $this->assertSame(BookingStatus::Confirmed, $booking->fresh()->status);
+    }
+
+    public function test_customer_cannot_cancel_another_customers_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $otherAccount = CustomerAccount::factory()->create();
+        $booking = $this->makeUpcomingBookingFor($otherAccount, BookingStatus::Pending);
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")->assertForbidden();
+    }
+
+    public function test_guest_cannot_cancel_a_booking(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeUpcomingBookingFor($account, BookingStatus::Pending);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")->assertUnauthorized();
+    }
+
+    public function test_cancelling_a_booking_notifies_the_vendors_admins(): void
+    {
+        Notification::fake();
+
+        $account = CustomerAccount::factory()->create();
+        $booking = $this->makeUpcomingBookingFor($account, BookingStatus::Pending);
+        $vendorAdmin = User::factory()->vendorAdmin(Vendor::find($booking->vendor_id))->create();
+        Sanctum::actingAs($account);
+
+        $this->postJson("/api/v1/customer/bookings/{$booking->id}/cancel")->assertOk();
+
+        Notification::assertSentTo($vendorAdmin, BookingCancelledByCustomer::class);
     }
 }

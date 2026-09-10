@@ -20,6 +20,7 @@ use App\Models\Promotion;
 use App\Models\Review;
 use App\Models\User;
 use App\Models\Venue;
+use App\Notifications\BookingCancelledByCustomer;
 use App\Notifications\NewBookingCreated;
 use App\Services\BookingPaymentService;
 use Illuminate\Http\Request;
@@ -168,6 +169,48 @@ class BookingController extends Controller
         $paymentService->refreshStatus($payment);
 
         return new BookingResource($booking->fresh()->load(['venue', 'billiardTable', 'customer', 'promotion', 'review']));
+    }
+
+    /**
+     * Cancel one of the customer's own bookings, provided it hasn't already
+     * started and isn't already cancelled/completed. Unlike a vendor-side
+     * cancellation, this doesn't notify the customer (they already know -
+     * they just did it) - it notifies the vendor's admins instead.
+     */
+    public function cancel(Request $request, Booking $booking)
+    {
+        $this->authorizeOwnBooking($request, $booking);
+
+        if (! in_array($booking->status, [BookingStatus::Pending, BookingStatus::Confirmed], true)) {
+            return response()->json([
+                'message' => 'Booking ini tidak bisa dibatalkan.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($booking->start_time->isPast()) {
+            return response()->json([
+                'message' => 'Booking yang sudah lewat waktu mulai tidak bisa dibatalkan.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $booking->update(['status' => BookingStatus::Cancelled]);
+        $booking->load(['venue', 'billiardTable', 'customer', 'promotion', 'review']);
+
+        ActivityLog::record(
+            ActivityAction::Cancelled,
+            'booking',
+            $booking->id,
+            "{$request->user()->name} membatalkan booking BK-".str_pad((string) $booking->id, 4, '0', STR_PAD_LEFT).' lewat aplikasi',
+            $booking->vendor_id,
+        );
+
+        $vendorAdmins = User::where('vendor_id', $booking->vendor_id)
+            ->where('role', UserRole::VendorAdmin)
+            ->get();
+
+        Notification::send($vendorAdmins, new BookingCancelledByCustomer($booking));
+
+        return new BookingResource($booking);
     }
 
     /**

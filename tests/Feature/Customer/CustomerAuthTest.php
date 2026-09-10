@@ -5,6 +5,7 @@ namespace Tests\Feature\Customer;
 use App\Models\CustomerAccount;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -103,5 +104,73 @@ class CustomerAuthTest extends TestCase
         Sanctum::actingAs(User::factory()->staff()->create());
 
         $this->getJson('/api/v1/customer/me')->assertForbidden();
+    }
+
+    public function test_customer_can_update_their_name_email_and_phone(): void
+    {
+        $account = CustomerAccount::factory()->create(['name' => 'Budi Lama', 'email' => 'lama@example.test', 'phone' => '081111111111']);
+        Sanctum::actingAs($account);
+
+        $this->putJson('/api/v1/customer/me', [
+            'name' => 'Budi Baru',
+            'email' => 'baru@example.test',
+            'phone' => '082222222222',
+        ])->assertOk()->assertJsonPath('data.name', 'Budi Baru');
+
+        $this->assertSame('baru@example.test', $account->fresh()->email);
+        $this->assertSame('082222222222', $account->fresh()->phone);
+    }
+
+    public function test_customer_cannot_update_email_to_one_already_taken(): void
+    {
+        CustomerAccount::factory()->create(['email' => 'taken@example.test']);
+        $account = CustomerAccount::factory()->create(['email' => 'mine@example.test']);
+        Sanctum::actingAs($account);
+
+        $this->putJson('/api/v1/customer/me', [
+            'name' => $account->name,
+            'email' => 'taken@example.test',
+            'phone' => $account->phone,
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
+    }
+
+    public function test_customer_can_change_their_password_with_the_correct_current_password(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        Sanctum::actingAs($account);
+
+        $this->putJson('/api/v1/customer/me', [
+            'name' => $account->name,
+            'email' => $account->email,
+            'phone' => $account->phone,
+            'current_password' => 'password',
+            'password' => 'new-password123',
+            'password_confirmation' => 'new-password123',
+        ])->assertOk();
+
+        $this->assertTrue(Hash::check('new-password123', $account->fresh()->password));
+    }
+
+    public function test_customer_cannot_change_password_with_the_wrong_current_password(): void
+    {
+        $account = CustomerAccount::factory()->create();
+        Sanctum::actingAs($account);
+
+        $this->putJson('/api/v1/customer/me', [
+            'name' => $account->name,
+            'email' => $account->email,
+            'phone' => $account->phone,
+            'current_password' => 'wrong-password',
+            'password' => 'new-password123',
+            'password_confirmation' => 'new-password123',
+        ])->assertUnprocessable()->assertJsonValidationErrors('current_password');
+
+        $this->assertTrue(Hash::check('password', $account->fresh()->password));
+    }
+
+    public function test_guest_cannot_update_a_profile(): void
+    {
+        $this->putJson('/api/v1/customer/me', ['name' => 'x', 'email' => 'x@example.test', 'phone' => '08123'])
+            ->assertUnauthorized();
     }
 }

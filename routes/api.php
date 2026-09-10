@@ -78,12 +78,14 @@ Route::prefix('v1')->group(function (): void {
         Route::middleware(['auth:sanctum', 'customer.account'])->group(function (): void {
             Route::post('/logout', [CustomerAuthController::class, 'logout']);
             Route::get('/me', [CustomerAuthController::class, 'me']);
+            Route::put('/me', [CustomerAuthController::class, 'updateProfile']);
 
             Route::get('/bookings', [CustomerBookingController::class, 'index']);
             Route::post('/bookings', [CustomerBookingController::class, 'store']);
             Route::get('/bookings/{booking}', [CustomerBookingController::class, 'show']);
             Route::post('/bookings/{booking}/pay', [CustomerBookingController::class, 'pay']);
             Route::post('/bookings/{booking}/refresh-payment', [CustomerBookingController::class, 'refreshPayment']);
+            Route::post('/bookings/{booking}/cancel', [CustomerBookingController::class, 'cancel']);
             Route::post('/bookings/{booking}/review', [CustomerBookingController::class, 'review']);
 
             Route::get('/favorites', [CustomerFavoriteController::class, 'index']);
