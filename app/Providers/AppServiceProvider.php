@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Notifications\Channels\FcmChannel;
 use App\Services\DuitkuService;
+use App\Services\GooglePlacesService;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
             merchantCode: (string) config('services.duitku.merchant_code'),
             apiKey: (string) config('services.duitku.api_key'),
             sandbox: (bool) config('services.duitku.sandbox'),
+        ));
+
+        $this->app->singleton(GooglePlacesService::class, fn () => new GooglePlacesService(
+            apiKey: (string) config('services.google_places.key'),
         ));
     }
 

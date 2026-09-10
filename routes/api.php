@@ -12,12 +12,15 @@ use App\Http\Controllers\Api\Customer\BookingController as CustomerBookingContro
 use App\Http\Controllers\Api\Customer\ConfigController as CustomerConfigController;
 use App\Http\Controllers\Api\Customer\DeviceTokenController as CustomerDeviceTokenController;
 use App\Http\Controllers\Api\Customer\FavoriteController as CustomerFavoriteController;
+use App\Http\Controllers\Api\Customer\NearbyPlaceController;
 use App\Http\Controllers\Api\Customer\NotificationController as CustomerNotificationController;
+use App\Http\Controllers\Api\Customer\PartnerLeadController as CustomerPartnerLeadController;
 use App\Http\Controllers\Api\Customer\PromotionController as CustomerPromotionController;
 use App\Http\Controllers\Api\Customer\ReviewController as CustomerReviewController;
 use App\Http\Controllers\Api\Customer\VenueController as CustomerVenueController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PartnerLeadController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayoutController;
 use App\Http\Controllers\Api\PromotionController;
@@ -47,6 +50,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('bookings/{booking}/pay', [PaymentController::class, 'initiate']);
         Route::get('payments', [PaymentController::class, 'index']);
         Route::apiResource('promotions', PromotionController::class);
+        Route::apiResource('partner-leads', PartnerLeadController::class)->only(['index', 'show', 'update']);
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
@@ -74,6 +78,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/venues/{venue}/reviews', [CustomerReviewController::class, 'index']);
         Route::get('/promotions', [CustomerPromotionController::class, 'index']);
         Route::get('/config', [CustomerConfigController::class, 'index']);
+        Route::get('/nearby-places', [NearbyPlaceController::class, 'index']);
 
         Route::middleware(['auth:sanctum', 'customer.account'])->group(function (): void {
             Route::post('/logout', [CustomerAuthController::class, 'logout']);
@@ -91,6 +96,8 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/favorites', [CustomerFavoriteController::class, 'index']);
             Route::post('/venues/{venue}/favorite', [CustomerFavoriteController::class, 'store']);
             Route::delete('/venues/{venue}/favorite', [CustomerFavoriteController::class, 'destroy']);
+
+            Route::post('/partner-leads', [CustomerPartnerLeadController::class, 'store']);
 
             Route::post('/device-tokens', [CustomerDeviceTokenController::class, 'store']);
             Route::delete('/device-tokens', [CustomerDeviceTokenController::class, 'destroy']);
